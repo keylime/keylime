@@ -108,13 +108,20 @@ SNP_REPORT_KEY_INFO_OFFSET = 0x48
 SNP_SIGNING_KEY_VCEK = 0
 SNP_SIGNING_KEY_VLEK = 1
 
-# CPUID family/model of the report (v3+ reports only). Family 0x19 covers
-# Milan (EPYC 7003, models < 0x10) and Genoa (EPYC 9004, models >= 0x10);
-# family 0x1A is Turin. v2 reports carry no CPUID (the region is reserved)
-# and are rejected in _report_generation().
+# CPUID family/model of the report (v3+ reports only), server SKUs only:
+# family 0x19 covers Milan (EPYC 7003, models 0x00-0x0F) and Genoa
+# (EPYC 9004, models 0x10-0x1F, plus the dense Bergamo/Siena parts,
+# models 0xA0-0xAF); family 0x1A is Turin (models 0x00-0x11). Client
+# models in between are not SEV-SNP server parts and are refused, as is
+# any yet-unseen model: a new SKU becomes supported only as a conscious
+# change here.
+# v2 reports carry no CPUID (the region is reserved) and are rejected in
+# _report_generation().
 SNP_CPUID_FAMILY_MILAN_GENOA = 0x19
 SNP_CPUID_FAMILY_TURIN = 0x1A
-SNP_CPUID_GENOA_MIN_MODEL = 0x10
+SNP_MILAN_MODELS = range(0x00, 0x10)
+SNP_GENOA_MODELS = tuple(range(0x10, 0x20)) + tuple(range(0xA0, 0xB0))
+SNP_TURIN_MODELS = range(0x00, 0x12)
 
 # TPMS_ATTEST constants
 TPM_GENERATED = 0xFF544347
@@ -122,6 +129,16 @@ TPM_ST_ATTEST_QUOTE = 0x8018
 TPM_ALG_SHA256 = 0x000B
 EXPECTED_PCR_COUNT = 24
 PCR_SIZE = 32
+# the quote must cover the full SHA-256 bank, PCRs 0-23: the PCR values
+# are labeled positionally (pcrs[i] -> pcr{i:02d}, pcrs[8] -> init_data),
+# so a shifted or partial selection would mislabel them
+PCR_SELECT_ALL = b"\xff\xff\xff"
+
+# Size bounds for the untrusted evidence, checked in phase 0 before any
+# expensive decoding or parsing (real HCL reports are ~2.6 KB)
+MAX_HCL_REPORT_SIZE = 1 << 20  # 1 MiB
+MAX_CLAIMS_SIZE = 256 * 1024  # 256 KiB
+MAX_QUOTE_MESSAGE_SIZE = 64 * 1024  # TPM2 quotes are a few hundred bytes
 
 # vTPM measured register semantics (TCG PC Client Firmware Profile)
 INIT_DATA_PCR = 8
@@ -163,10 +180,6 @@ BUNDLED_ANCHOR_STORE = os.path.join(os.path.dirname(__file__), "amd_cert_store")
 # In-memory anchor cache, populated by resolve_trust_anchors(); lives for
 # the process lifetime (the chains are stable vendor certificates)
 _ANCHOR_CACHE: Dict[str, Tuple[x509.Certificate, x509.Certificate]] = {}
-
-# cc_eventlog replay is not implemented yet; warn only once per process rather
-# than on every attestation, since the message carries no per-attestation detail
-_CC_EVENTLOG_WARNED = False
 
 
 @dataclass
@@ -434,6 +447,9 @@ def _parse_hcl_runtime_data(hcl_report: bytes) -> HclRuntimeData:
             f"expected at least {HCL_RUNTIME_DATA_HEADER_SIZE}"
         )
     data_size, rt_version, rt_report_type, hash_type, claim_size = struct.unpack_from("<5I", runtime, 0)
+    if claim_size > MAX_CLAIMS_SIZE:
+        # bounds the JSON parse below, which happens before any signature check
+        raise ValueError(f"runtime data claim_size {claim_size} exceeds the maximum of {MAX_CLAIMS_SIZE} bytes")
     logger.debug(
         "HCL runtime data: data_size=%d version=%d report_type=%d hash_type=%d claim_size=%d",
         data_size,
@@ -500,6 +516,9 @@ def _extract_user_data(claims: Dict[str, Any]) -> Optional[bytes]:
 
 def parse_hcl_report(hcl_report: bytes) -> HclReport:
     """Parse the Azure HCL container: header + SNP report + runtime claims."""
+    if len(hcl_report) > MAX_HCL_REPORT_SIZE:
+        raise ValueError(f"HCL report of {len(hcl_report)} bytes exceeds the maximum of {MAX_HCL_REPORT_SIZE} bytes")
+
     header = _parse_hcl_header(hcl_report)
 
     snp_report = hcl_report[SNP_REPORT_OFFSET : SNP_REPORT_OFFSET + SNP_REPORT_SIZE]
@@ -517,7 +536,9 @@ def parse_hcl_report(hcl_report: bytes) -> HclReport:
     if not isinstance(claims, dict):
         raise ValueError("runtime claims must be a JSON object")
 
-    logger.debug("HCL runtime claims: %s", claims)
+    # never log the claims contents: they carry guest-identifying data
+    # (vmUniqueId, the AK/EK JWKs, the user-data nonce)
+    logger.debug("HCL runtime claims: %d bytes, keys: %s", len(runtime.claims_bytes), sorted(claims.keys()))
 
     ak_pub = _extract_ak_pub(claims)
     user_data = _extract_user_data(claims)
@@ -531,6 +552,7 @@ def parse_hcl_report(hcl_report: bytes) -> HclReport:
         ak_pub=ak_pub,
         user_data=user_data,
     )
+    # the user-data value is the nonce: not logged, only its presence
     logger.debug(
         "Parsed HCL report: %d bytes, container v%d, SNP report %d bytes, claims %d bytes, "
         "hash type %d, user-data=%s, AK %d-bit RSA",
@@ -539,7 +561,7 @@ def parse_hcl_report(hcl_report: bytes) -> HclReport:
         len(snp_report),
         runtime.claim_size,
         runtime.hash_type,
-        user_data.hex() if user_data is not None else "(absent)",
+        "present" if user_data is not None else "(absent)",
         ak_pub.key_size,
     )
     return hcl
@@ -548,22 +570,33 @@ def parse_hcl_report(hcl_report: bytes) -> HclReport:
 def _report_generation(snp_report: bytes) -> str:
     """Derive the processor generation from the report's CPUID (v3+).
 
-    Family 0x19 covers Milan (models < 0x10) and Genoa (models >= 0x10);
-    family 0x1A is Turin. Reports without CPUID (version 2, where the
+    Server SKU models only (see the constants above): anything else is
+    refused rather than bucketed into a generation, so a future SKU needs
+    a conscious change. Reports without CPUID (version 2, where the
     region is reserved) are rejected: the generation cannot be established
     from the report, and guessing would misroute the VCEK chain pinning.
     """
     family = snp_report[SNP_REPORT_CPUID_FAMILY_OFFSET]
     model = snp_report[SNP_REPORT_CPUID_MODEL_OFFSET]
-    if family == SNP_CPUID_FAMILY_TURIN:
-        return "turin"
-    if family == SNP_CPUID_FAMILY_MILAN_GENOA:
-        return "genoa" if model >= SNP_CPUID_GENOA_MIN_MODEL else "milan"
     if family == 0:
         raise ValueError(
             "SNP report is missing the CPUID family/model fields (version 2 "
             "reports carry none); the processor generation cannot be "
             "determined, refusing to guess"
+        )
+    if family == SNP_CPUID_FAMILY_MILAN_GENOA:
+        if model in SNP_MILAN_MODELS:
+            return "milan"
+        if model in SNP_GENOA_MODELS:
+            return "genoa"
+        raise ValueError(
+            f"processor model 0x{model:02x} of CPUID family 0x{family:02x} is not a supported Milan/Genoa server SKU"
+        )
+    if family == SNP_CPUID_FAMILY_TURIN:
+        if model in SNP_TURIN_MODELS:
+            return "turin"
+        raise ValueError(
+            f"processor model 0x{model:02x} of CPUID family 0x{family:02x} is not a supported Turin server SKU"
         )
     raise ValueError(f"unknown SNP report CPUID family {family}")
 
@@ -640,6 +673,11 @@ def parse_tpm_attest(message: bytes) -> TpmAttest:
     firmwareVersion, pcrSelect and pcrDigest, requiring the parse to
     consume the message exactly.
     """
+    if len(message) > MAX_QUOTE_MESSAGE_SIZE:
+        # bounds the walk below, which happens before the quote signature
+        # check in phase 1
+        raise ValueError(f"TPMS_ATTEST of {len(message)} bytes exceeds the maximum of {MAX_QUOTE_MESSAGE_SIZE} bytes")
+
     offset = 0
 
     def take(size: int) -> bytes:
@@ -855,14 +893,18 @@ def resolve_trust_anchors(path: Optional[str] = None) -> Dict[str, Tuple[x509.Ce
     Nothing is fetched from the network; use fetch_kds_chain() to
     provision or refresh a store. A generation missing from the store is
     simply unavailable and evidence of that generation fails closed.
-    Chains are cached in memory for the process lifetime (an explicit
-    ``path`` re-resolves and replaces the cache).
+    Chains are cached in memory for the process lifetime. An explicit
+    ``path`` is resolved without touching the process-global cache: a
+    diagnostic or tenant-specific store must not re-root trust for
+    unrelated later resolutions (callers that need per-call trust should
+    use the anchors parameter of verify_attestation instead).
     """
-    if path is None:
-        if _ANCHOR_CACHE:
-            # return a snapshot so callers cannot mutate the process-global cache
-            return dict(_ANCHOR_CACHE)
-        path = config.get("verifier", "amd_anchor_path", fallback=BUNDLED_ANCHOR_STORE) or BUNDLED_ANCHOR_STORE
+    if path is not None:
+        return load_trust_anchors(path)
+    if _ANCHOR_CACHE:
+        # return a snapshot so callers cannot mutate the process-global cache
+        return dict(_ANCHOR_CACHE)
+    path = config.get("verifier", "amd_anchor_path", fallback=BUNDLED_ANCHOR_STORE) or BUNDLED_ANCHOR_STORE
     chains = load_trust_anchors(path)
     _ANCHOR_CACHE.clear()
     _ANCHOR_CACHE.update(chains)
@@ -894,7 +936,7 @@ def _rsa_pss_verify(public_key: Any, signature: bytes, data: bytes) -> bool:
     try:
         public_key.verify(signature, data, _pss_padding(), hashes.SHA384())
         return True
-    except InvalidSignature:
+    except (InvalidSignature, UnsupportedAlgorithm):
         return False
 
 
@@ -913,6 +955,13 @@ def verify_tpm_signature(
 
 def verify_tpm_nonce(attest: TpmAttest, nonce: bytes, failure: Failure) -> bool:
     """Check that the quote extraData matches the expected evidence nonce."""
+    if not nonce:
+        failure.add_event(
+            "invalid_input",
+            {"message": "the expected evidence nonce (report_data) must be non-empty"},
+            False,
+        )
+        return False
     if attest.extra_data != nonce:
         failure.add_event(
             "quote_nonce",
@@ -937,6 +986,13 @@ def verify_tpm_pcrs(pcrs: List[bytes], attest: TpmAttest, failure: Failure) -> b
         failure.add_event(
             "pcr_digest",
             {"message": f"unexpected pcrSelect banks {attest.pcr_select_hash_algs}"},
+            False,
+        )
+        return False
+    if attest.pcr_select_bitmap != PCR_SELECT_ALL:
+        failure.add_event(
+            "pcr_digest",
+            {"message": f"unexpected pcrSelect bitmap {attest.pcr_select_bitmap.hex()}, expected {PCR_SELECT_ALL.hex()} (PCR 0-23)"},
             False,
         )
         return False
@@ -1005,6 +1061,19 @@ def verify_vcek_chain(
     so trying other generations' chains would only accept mixed-chip
     evidence.
     """
+    if not isinstance(chains, dict) or not all(
+        isinstance(chain, tuple)
+        and len(chain) == 2
+        and all(isinstance(cert, x509.Certificate) for cert in chain)
+        for chain in chains.values()
+    ):
+        failure.add_event(
+            "vcek_chain",
+            {"message": "trust anchors must map generation -> (ask, ark) X.509 certificate pairs"},
+            False,
+        )
+        return False
+
     generation = snp.generation
     chain = chains.get(generation)
     if chain is None:
@@ -1085,9 +1154,19 @@ def _decode_oid_int(raw: bytes) -> int:
     if len(raw) < 2 or raw[0] != 0x02:
         raise ValueError(f"invalid DER INTEGER extension value {raw.hex()}")
     (length,) = raw[1:2]
+    if length == 0:
+        raise ValueError(f"empty DER INTEGER extension value {raw.hex()}")
     if len(raw) != 2 + length:
         raise ValueError(f"invalid length for DER INTEGER extension value {raw.hex()}")
-    return int.from_bytes(raw[2 : 2 + length], "big")
+    payload = raw[2:]
+    if payload[0] & 0x80:
+        # negative (e.g. 02 01 80, DER for -128, would otherwise read as 128)
+        raise ValueError(f"negative DER INTEGER extension value {raw.hex()}")
+    if length > 1 and payload[0] == 0x00 and not payload[1] & 0x80:
+        # non-minimal (e.g. 02 02 00 05); the leading zero is only valid
+        # for positive values from 128 through 255 (02 02 00 80)
+        raise ValueError(f"non-minimal DER INTEGER extension value {raw.hex()}")
+    return int.from_bytes(payload, "big")
 
 
 def _decode_oid_octets(raw: bytes, size: int) -> bytes:
@@ -1312,12 +1391,15 @@ def _parse_evidence_parts(
         return None
 
     if parsed.cc_eventlog:
-        global _CC_EVENTLOG_WARNED
-        if not _CC_EVENTLOG_WARNED:
-            logger.warning(
-                "cc_eventlog present in the az-snp-vtpm evidence but its replay is not implemented; ignoring it"
-            )
-            _CC_EVENTLOG_WARNED = True
+        # cc_eventlog replay is not implemented yet (see the TODO at the
+        # top of this module): the eventlog is accepted but NOT verified.
+        # Surface that degraded verdict per attestation as a recoverable
+        # event, so callers can see it without the evidence failing.
+        failure.add_event(
+            "cc_eventlog_unverified",
+            {"message": "cc_eventlog present in the az-snp-vtpm evidence but its replay is not implemented; ignoring it"},
+            True,
+        )
 
     # Phase 0 - parse the HCL container and the nested SNP report
     try:
@@ -1411,7 +1493,7 @@ def verify_attestation(
     # this CPU generation.
     try:
         chains = anchors if anchors is not None else resolve_trust_anchors()
-    except ValueError as e:
+    except (ValueError, OSError, UnsupportedAlgorithm) as e:
         failure.add_event("missing_trust_anchors", {"message": str(e)}, False)
         return ({}, failure)
     if not verify_vcek_chain(parsed.vcek, snp, chains, failure):
@@ -1444,7 +1526,8 @@ def verify_attestation(
         return ({}, failure)
 
     # Phase 11 (eventlog replay) is not implemented: cc_eventlog is accepted
-    # but ignored; see the TODO at the top of this module.
+    # but ignored, surfaced as a recoverable cc_eventlog_unverified event in
+    # phase 0; see the TODO at the top of this module.
 
     # Phase 12 - claims assembly: build the claims map (policy, TCB,
     # platform info, measurement, PCRs) for keylime's policy layer. No

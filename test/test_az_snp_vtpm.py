@@ -14,7 +14,9 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from cryptography import x509
+from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from pyasn1.codec.der import decoder as der_decoder
 from pyasn1.codec.der import encoder as der_encoder
 from pyasn1_modules import rfc2459
@@ -278,11 +280,19 @@ class VerifyAttestationTest(unittest.TestCase):
         )
 
     def test_cc_eventlog_ignored(self):
-        """v2 evidence carrying a cc_eventlog must not fail (replay not implemented)."""
+        """v2 evidence carrying a cc_eventlog must not fail (replay not implemented).
+
+        The degraded verdict is surfaced per attestation as a recoverable
+        cc_eventlog_unverified event, so callers can see that the eventlog
+        was accepted without being verified.
+        """
         evidence = load_json("evidence-v2-milan.json")
         evidence["cc_eventlog"] = "aGVsbG8="  # non-empty, would need replay
-        _claims, failure = self.verify(evidence, REPORT_DATA_V2)
-        self.assertEqual(event_ids(failure), [])
+        claims, failure = self.verify(evidence, REPORT_DATA_V2)
+        self.assertTrue(claims, msg=str(failure.events))
+        self.assertIn(f"{TEE_COMPONENT}.cc_eventlog_unverified", event_ids(failure), msg=str(failure.events))
+        # recoverable: the unimplemented replay must not fail the evidence
+        self.assertTrue(failure.recoverable, msg=str(failure.events))
 
     def test_missing_trust_anchors(self):
         # an anchor store with no usable chain -> fail closed
@@ -290,6 +300,20 @@ class VerifyAttestationTest(unittest.TestCase):
         az_snp_vtpm.clear_anchor_cache()
         with tempfile.TemporaryDirectory() as empty:
             with patch.object(az_snp_vtpm.config, "get", return_value=empty):
+                claims, failure = az_snp_vtpm.verify_attestation(
+                    keylime_evidence(envelope), derive_keylime_evidence_nonce(envelope)
+                )
+        self.assertEqual(claims, {})
+        self.assertIn(f"{TEE_COMPONENT}.missing_trust_anchors", event_ids(failure))
+
+    def test_missing_trust_anchors_unreadable_store(self):
+        # an unreadable store (dangling symlink, permissions) raises OSError
+        # rather than ValueError: it must still fail closed, not escape
+        envelope = load_json("evidence-v0-genoa-local.json")
+        az_snp_vtpm.clear_anchor_cache()
+        with tempfile.TemporaryDirectory() as store:
+            os.symlink(os.path.join(store, "does-not-exist.pem"), os.path.join(store, "dangling.pem"))
+            with patch.object(az_snp_vtpm.config, "get", return_value=store):
                 claims, failure = az_snp_vtpm.verify_attestation(
                     keylime_evidence(envelope), derive_keylime_evidence_nonce(envelope)
                 )
@@ -439,12 +463,13 @@ class HclReportTest(unittest.TestCase):
         self.assertIn("data_size", str(ctx.exception))
 
     def test_runtime_truncated_data(self):
-        # data_size is consistent with claim_size, but larger than the bytes present
+        # data_size is consistent with claim_size (and within the size
+        # bound), but larger than the bytes actually present
         wrong = bytearray(self.report)
         struct.pack_into(
-            "<I", wrong, az_snp_vtpm.HCL_RUNTIME_DATA_OFFSET, az_snp_vtpm.HCL_RUNTIME_DATA_HEADER_SIZE + 10**6
+            "<I", wrong, az_snp_vtpm.HCL_RUNTIME_DATA_OFFSET, az_snp_vtpm.HCL_RUNTIME_DATA_HEADER_SIZE + 4096
         )
-        struct.pack_into("<I", wrong, az_snp_vtpm.HCL_RUNTIME_DATA_OFFSET + 16, 10**6)
+        struct.pack_into("<I", wrong, az_snp_vtpm.HCL_RUNTIME_DATA_OFFSET + 16, 4096)
         with self.assertRaises(ValueError) as ctx:
             az_snp_vtpm.parse_hcl_report(bytes(wrong))
         self.assertIn("truncated", str(ctx.exception))
@@ -457,6 +482,30 @@ class HclReportTest(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             az_snp_vtpm.parse_snp_report(self.hcl.snp_report[:-1])
         self.assertIn(str(az_snp_vtpm.SNP_REPORT_SIZE), str(ctx.exception))
+
+    def test_report_too_large(self):
+        # oversized input is refused in phase 0, before any decoding or
+        # JSON parsing (real reports are ~2.6 KB)
+        with self.assertRaises(ValueError) as ctx:
+            az_snp_vtpm.parse_hcl_report(bytes(az_snp_vtpm.MAX_HCL_REPORT_SIZE + 1))
+        self.assertIn("exceeds the maximum", str(ctx.exception))
+
+    def test_runtime_claim_size_too_large(self):
+        # a huge claim_size in the runtime header is refused before the
+        # JSON parse, ahead of any signature check
+        claim_size = az_snp_vtpm.MAX_CLAIMS_SIZE + 1
+        runtime = struct.pack(
+            "<5I",
+            az_snp_vtpm.HCL_RUNTIME_DATA_HEADER_SIZE + claim_size,
+            az_snp_vtpm.HCL_RUNTIME_DATA_VERSION,
+            2,
+            az_snp_vtpm.HCL_RUNTIME_DATA_HASH_TYPE_SHA256,
+            claim_size,
+        )
+        report = self.report[: az_snp_vtpm.HCL_RUNTIME_DATA_OFFSET] + runtime
+        with self.assertRaises(ValueError) as ctx:
+            az_snp_vtpm.parse_hcl_report(report)
+        self.assertIn("claim_size", str(ctx.exception))
 
 
 class TpmAttestTest(unittest.TestCase):
@@ -483,6 +532,12 @@ class TpmAttestTest(unittest.TestCase):
         # parser must consume the message exactly; extra trailing byte fails
         with self.assertRaises(ValueError):
             az_snp_vtpm.parse_tpm_attest(self.message + b"\x00")
+
+    def test_message_too_large(self):
+        # oversized input is refused in phase 0, before the walk
+        with self.assertRaises(ValueError) as ctx:
+            az_snp_vtpm.parse_tpm_attest(bytes(az_snp_vtpm.MAX_QUOTE_MESSAGE_SIZE + 1))
+        self.assertIn("exceeds the maximum", str(ctx.exception))
 
     def test_bad_magic(self):
         wrong = bytearray(self.message)
@@ -516,6 +571,31 @@ class VerifyTpmPcrsTest(unittest.TestCase):
 
     def test_two_banks(self):
         attest = dataclasses.replace(self.attest, pcr_select_hash_algs=[az_snp_vtpm.TPM_ALG_SHA256, 0x0004])
+        failure = Failure(Component.TEE)
+        self.assertFalse(az_snp_vtpm.verify_tpm_pcrs(self.parsed.quote_pcrs, attest, failure))
+        self.assertIn(f"{TEE_COMPONENT}.pcr_digest", event_ids(failure))
+
+    def test_shifted_bitmap(self):
+        # a selection of PCRs 1-24 (00 ff ff ff) on a TPM with more than 24
+        # registers still ships 24 consistent values, but they would be
+        # labeled pcr00-pcr23 positionally with every register off by one:
+        # the guest would control the value checked against init_data
+        # (index 8 = PCR 9). The selection must be exactly PCR 0-23.
+        attest = dataclasses.replace(self.attest, pcr_select_bitmap=bytes.fromhex("00ffffff"))
+        failure = Failure(Component.TEE)
+        self.assertFalse(az_snp_vtpm.verify_tpm_pcrs(self.parsed.quote_pcrs, attest, failure))
+        self.assertIn(f"{TEE_COMPONENT}.pcr_digest", event_ids(failure))
+
+    def test_partial_bitmap(self):
+        # a selection covering only a prefix of the bank (PCRs 0-15)
+        attest = dataclasses.replace(self.attest, pcr_select_bitmap=b"\xff\xff\x0f")
+        failure = Failure(Component.TEE)
+        self.assertFalse(az_snp_vtpm.verify_tpm_pcrs(self.parsed.quote_pcrs, attest, failure))
+        self.assertIn(f"{TEE_COMPONENT}.pcr_digest", event_ids(failure))
+
+    def test_short_bitmap(self):
+        # sizeofSelect < 3: fewer than 24 registers selectable at all
+        attest = dataclasses.replace(self.attest, pcr_select_bitmap=b"\xff\xff")
         failure = Failure(Component.TEE)
         self.assertFalse(az_snp_vtpm.verify_tpm_pcrs(self.parsed.quote_pcrs, attest, failure))
         self.assertIn(f"{TEE_COMPONENT}.pcr_digest", event_ids(failure))
@@ -595,6 +675,11 @@ class PhaseFailureTest(unittest.TestCase):
 
     def test_quote_nonce(self):
         self.fail_with("quote_nonce", nonce=self.nonce[::-1])
+
+    def test_empty_nonce_rejected(self):
+        # an empty nonce would make the prefix comparisons vacuous and
+        # silently disable replay protection; it must fail closed
+        self.fail_with("invalid_input", nonce=b"")
 
     def test_pcr_digest(self):
         self.evidence["quote"]["pcrs"][0][0] ^= 1
@@ -767,6 +852,15 @@ class PhaseFailureTest(unittest.TestCase):
         with patch.dict(self.evidence, {"report": list(report)}):
             self.fail_with("report_signature")
 
+    def test_report_signature_zeroed(self):
+        # an all-zero 144-byte signature block must hit the r/s > 0 guard,
+        # not raise from encode_dss_signature() inside the ECDSA verify
+        report = bytearray(self.evidence["report"])
+        report[0x02C0 : 0x02C0 + 144] = bytes(144)
+        with patch.dict(self.evidence, {"report": list(report)}):
+            failure = self.fail_with("report_signature")
+        self.assertTrue(any("non-positive scalar" in event.context for event in failure.events), msg=str(failure.events))
+
     def test_vmpl(self):
         # VMPL sits inside the VCEK-signed region, so flipping it in the raw
         # report breaks the signature check first; exercise the check itself
@@ -824,6 +918,56 @@ class DuplicatedExtensionTest(unittest.TestCase):
                 self.assertIn(f"{TEE_COMPONENT}.vcek_chip_id", event_ids(failure))
 
 
+class DerIntegerTest(unittest.TestCase):
+    """_decode_oid_int accepts only canonical DER INTEGERs.
+
+    Empty, negative and non-minimal encodings are rejected; trailing
+    bytes after the INTEGER are rejected; the canonical forms are
+    accepted, including the leading zero required for values from
+    128 through 255.
+    """
+
+    def decode(self, raw):
+        return az_snp_vtpm._decode_oid_int(raw)  # pylint: disable=protected-access
+
+    def test_accepted(self):
+        self.assertEqual(self.decode(b"\x02\x01\x05"), 5)
+        self.assertEqual(self.decode(b"\x02\x01\x00"), 0)  # canonical zero
+        self.assertEqual(self.decode(b"\x02\x02\x00\x80"), 128)  # positive >= 128 needs the leading zero
+        self.assertEqual(self.decode(b"\x02\x02\x00\xff"), 255)
+
+    def test_empty(self):
+        # an empty SPL extension must not spuriously match a TCB level of 0
+        # (the milan fixtures carry reported_tcb_tee == 0)
+        with self.assertRaises(ValueError):
+            self.decode(b"\x02\x00")
+
+    def test_negative(self):
+        # 02 01 80 is DER for -128; read unsigned it would be 128
+        with self.assertRaises(ValueError):
+            self.decode(b"\x02\x01\x80")
+        with self.assertRaises(ValueError):
+            self.decode(b"\x02\x01\xff")
+
+    def test_non_minimal(self):
+        # redundant leading zero: only valid when the next byte has its
+        # sign bit set (values 128-255)
+        with self.assertRaises(ValueError):
+            self.decode(b"\x02\x02\x00\x05")
+        with self.assertRaises(ValueError):
+            self.decode(b"\x02\x02\x00\x00")
+
+    def test_trailing_garbage(self):
+        with self.assertRaises(ValueError):
+            self.decode(b"\x02\x01\x05\xff")
+
+    def test_not_an_integer(self):
+        with self.assertRaises(ValueError):
+            self.decode(b"\x03\x01\x05")  # BIT STRING tag
+        with self.assertRaises(ValueError):
+            self.decode(b"\x02")
+
+
 class TrustAnchorsTest(unittest.TestCase):
     def test_load_all_generations(self):
         chains = az_snp_vtpm.load_trust_anchors(ANCHOR_STORE)
@@ -854,6 +998,45 @@ class TrustAnchorsTest(unittest.TestCase):
             with self.assertLogs("keylime.az_snp_vtpm", level=logging.WARNING):
                 chains = az_snp_vtpm.load_trust_anchors(tmp)
         self.assertEqual(set(chains), {"genoa"})
+
+
+    def test_rsa_pss_verify_unsupported_algorithm(self):
+        # an anchor whose key algorithm the installed cryptography does
+        # not know parses fine (loading is lazy) and only fails at
+        # public_key().verify(): it must count as an invalid signature,
+        # not escape the fail-closed error handling
+        class UnusableKey(rsa.RSAPublicKey):
+            """An RSA key whose verification is unsupported by the backend."""
+
+            def verify(self, signature, data, *args, **kwargs):  # pylint: disable=unused-argument
+                raise UnsupportedAlgorithm("unknown algorithm")
+
+            def encrypt(self, plaintext, padding):  # pylint: disable=unused-argument
+                raise NotImplementedError
+
+            def public_numbers(self):
+                raise NotImplementedError
+
+            def public_bytes(self, encoding, format):  # pylint: disable=redefined-builtin
+                raise NotImplementedError
+
+            def recover_data_from_signature(self, signature, padding, algorithm):  # pylint: disable=unused-argument
+                raise NotImplementedError
+
+            @property
+            def key_size(self):
+                return 0
+
+            def __eq__(self, other):
+                return self is other
+
+            def __copy__(self):
+                return self
+
+            def __deepcopy__(self, memo):  # pylint: disable=unused-argument
+                return self
+
+        self.assertFalse(az_snp_vtpm._rsa_pss_verify(UnusableKey(), b"sig", b"data"))  # pylint: disable=protected-access
 
 
 class BundledAnchorTest(unittest.TestCase):
@@ -954,6 +1137,23 @@ class TurinTcbTest(unittest.TestCase):
         # be established, so it is refused instead of guessed
         with self.assertRaises(ValueError):
             self.snp_with_cpuid(0x00, 0x00)
+
+    def test_generation_boundaries(self):
+        # server SKU ranges
+        for model in (0x00, 0x0F):  # Milan (EPYC 7003)
+            self.assertEqual(self.snp_with_cpuid(0x19, model).generation, "milan")
+        for model in (0x10, 0x1F, 0xA0, 0xAF):  # Genoa (EPYC 9004, dense Bergamo/Siena)
+            self.assertEqual(self.snp_with_cpuid(0x19, model).generation, "genoa")
+        for model in (0x00, 0x11):  # Turin
+            self.assertEqual(self.snp_with_cpuid(0x1A, model).generation, "turin")
+
+    def test_unsupported_model_rejected(self):
+        # client models and future SKUs are refused, not silently bucketed
+        # into a generation (0x1A model 0x70 is a client Strix Halo part)
+        for family, model in ((0x19, 0x20), (0x19, 0x9F), (0x19, 0xB0), (0x1A, 0x12), (0x1A, 0x70)):
+            with self.subTest(family=family, model=model):
+                with self.assertRaises(ValueError):
+                    self.snp_with_cpuid(family, model)
 
     def test_unknown_family_rejected(self):
         with self.assertRaises(ValueError):
@@ -1182,6 +1382,20 @@ class MalformedEvidenceTest(unittest.TestCase):
         evidence["cc_eventlog"] = "a"
         self.assert_invalid_v2(evidence)
 
+    def test_v2_oversized_hcl_report(self):
+        # multi-megabyte evidence is refused in phase 0, before any
+        # expensive parsing (DoS guard; real reports are ~2.6 KB)
+        evidence = self.valid_v2_evidence()
+        evidence["hcl_report"] = (
+            base64.urlsafe_b64encode(bytes(az_snp_vtpm.MAX_HCL_REPORT_SIZE + 1)).decode("ascii").rstrip("=")
+        )
+        self.assert_invalid_v2(evidence, code="hcl_report")
+
+    def test_v2_oversized_quote_message(self):
+        evidence = self.valid_v2_evidence()
+        evidence["tpm_quote"]["message"] = "00" * (az_snp_vtpm.MAX_QUOTE_MESSAGE_SIZE + 1)
+        self.assert_invalid_v2(evidence, code="tpm_message_parse")
+
     @staticmethod
     def tamper_v2_vcek(mutate):
         """Load the v2 fixture's DER vcek, apply mutate(bytearray), re-encode."""
@@ -1263,8 +1477,10 @@ class TrustAnchorResolutionTest(unittest.TestCase):
             self.assertEqual(set(az_snp_vtpm.resolve_trust_anchors()), {"milan", "genoa", "turin"})
 
     def test_resolve_honors_explicit_path(self):
-        # a store with a single generation: only that chain is available
-        # and the explicit path replaces the cache
+        # a store with a single generation: only that chain is available;
+        # the explicit path must NOT touch the process-global cache (a
+        # diagnostic or tenant-specific store must not re-root trust for
+        # unrelated later resolutions)
         seed_anchor_cache()  # warm cache must not shadow the explicit path
         with tempfile.TemporaryDirectory() as store:
             with open(os.path.join(ANCHOR_STORE, "genoa_ask_ark.pem"), "rb") as src:
@@ -1272,7 +1488,8 @@ class TrustAnchorResolutionTest(unittest.TestCase):
                     dst.write(src.read())
             chains = az_snp_vtpm.resolve_trust_anchors(store)
         self.assertEqual(set(chains), {"genoa"})
-        self.assertEqual(set(az_snp_vtpm.resolve_trust_anchors()), {"genoa"})
+        # the default resolution still serves the warm cache, untouched
+        self.assertEqual(set(az_snp_vtpm.resolve_trust_anchors()), {"milan", "genoa", "turin"})
 
     def test_resolve_honors_config_path(self):
         # the [verifier] amd_anchor_path option points at a custom store
@@ -1369,6 +1586,17 @@ class VerifyAnchorsParameterTest(unittest.TestCase):
             )
         self.assertEqual(claims, {})
         self.assertIn(f"{TEE_COMPONENT}.vcek_chain", event_ids(failure))
+
+    def test_anchors_parameter_wrong_type_fails_closed(self):
+        # a wrong-shaped anchors value must fail closed with an event, not
+        # raise AttributeError at chains.get() or an unpacking error
+        evidence = load_json("evidence-v2-milan.json")
+        for bad in ("milan", [], {"milan": "ask-ark"}, {"milan": ("ask", "ark")}, {"milan": [1, 2]}):
+            with self.subTest(bad=bad):
+                with patch.object(az_snp_vtpm, "resolve_trust_anchors", side_effect=AssertionError("must not resolve")):
+                    claims, failure = az_snp_vtpm.verify_attestation(evidence, REPORT_DATA_V2, anchors=bad)  # type: ignore[arg-type]
+                self.assertEqual(claims, {}, msg=str(failure.events))
+                self.assertIn(f"{TEE_COMPONENT}.vcek_chain", event_ids(failure), msg=str(failure.events))
 
 
 class KdsFetchTest(unittest.TestCase):
