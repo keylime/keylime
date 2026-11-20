@@ -19,6 +19,17 @@ def _log_startup_info() -> None:
             "https://github.com/keylime/keylime/issues/?q=label:push-mode"
         )
 
+    # registrar_ip/registrar_port are unused since v6.4.0 and will be removed
+    # in the next major release
+    for option, default in (("registrar_ip", "127.0.0.1"), ("registrar_port", "8891")):
+        if config.get("verifier", option, fallback=default) != default:
+            logger.warning(
+                "The 'verifier.%s' option is deprecated and unused: the verifier does "
+                "not communicate with the registrar (since v6.4.0). The option will be "
+                "removed with the next major release.",
+                option,
+            )
+
     # Log REST API versions supported by the verifier
     api_version.log_api_versions(logger)
 
