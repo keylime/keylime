@@ -24,3 +24,5 @@ jinja2>=3.0.0 # BSD
 # as well as NotRequired on Python < 3.11
 typing-extensions>=4.0.1 ; python_version < '3.11' #PSF-2.0
 jsonschema>=2.6.0 # MIT
+# jwcrypto is used for JWT signing of attestation results (enhancement-133)
+jwcrypto>=1.5 # LGPL-3.0-or-later
