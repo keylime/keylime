@@ -97,6 +97,7 @@ class AgentAttestState:
     ima_keyring: ImaKeyrings
     ima_dm_state: Optional[bytes]
     quote_progress: Optional[Tuple[int, int]]
+    _warned_mb_refstate_ignored: bool
 
     def __init__(self, agent_id: str) -> None:
         """constructor"""
@@ -131,6 +132,7 @@ class AgentAttestState:
         self.set_boottime(0)
         self.ima_keyrings = ImaKeyrings()
         self.quote_progress = None
+        self._warned_mb_refstate_ignored = False
 
     def update_ima_attestation(self, pcr_num: int, pcr_value: bytes, num_ml_entries: int) -> None:
         """Update the attestation by remembering the new PCR value and the
