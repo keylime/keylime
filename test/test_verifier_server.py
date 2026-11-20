@@ -8,11 +8,18 @@ Regression test for: Database connection inheritance across fork boundaries
 causing empty HTTP responses and JSON decode errors.
 """
 
+import ast
+import base64
+import configparser
+import json
 import os
 import re
+import shutil
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
+from keylime import jwt
 from keylime.common import states
 from keylime.web.verifier_server import VerifierServer
 
@@ -532,6 +539,209 @@ class TestEngineDisposalDocumentation(unittest.TestCase):
             f"start_multi should document why engine disposal after fork is critical. "
             f"Expected mentions of inherit/connection/dispose/worker/parent, found: {found_terms}",
         )
+
+
+class TestVerifierServerJwtSignerPlacement(unittest.TestCase):
+    """Source-scan test pinning the pre-fork placement of JWT signer init.
+
+    Key resolution must run in the parent process (VerifierServer.__init__)
+    before workers are forked: per-worker resolution would give every worker
+    its own key on first boot, producing tokens whose kids the JWKS endpoint
+    never serves. A runtime test cannot catch this regression (all wiring
+    tests call _init_jwt_signer directly), so the placement is asserted on
+    the source — parsed with ast, so a commented-out or string-embedded call
+    cannot satisfy the check.
+    """
+
+    def _method_calls(self, method_name: str, call_name: str):
+        """Return the Call nodes for self.<call_name>() inside a VerifierServer method."""
+        server_path = os.path.join(os.path.dirname(__file__), "..", "keylime", "web", "verifier_server.py")
+        with open(server_path, encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name == "VerifierServer":
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and item.name == method_name:
+                        return [
+                            call
+                            for call in ast.walk(item)
+                            if isinstance(call, ast.Call)
+                            and isinstance(call.func, ast.Attribute)
+                            and call.func.attr == call_name
+                            and isinstance(call.func.value, ast.Name)
+                            and call.func.value.id == "self"
+                        ]
+        self.fail(f"method {method_name} not found in VerifierServer")
+
+    def test_init_jwt_signer_called_in_init_before_agents(self):
+        jwt_calls = self._method_calls("__init__", "_init_jwt_signer")
+        self.assertTrue(
+            jwt_calls,
+            "_init_jwt_signer() must be called in VerifierServer.__init__ so the signer exists before forking",
+        )
+        agent_calls = self._method_calls("__init__", "_prepare_agents_on_startup")
+        self.assertTrue(
+            agent_calls, "_prepare_agents_on_startup() not found in __init__ (test ordering assumption broken)"
+        )
+        self.assertLess(
+            max(call.lineno for call in jwt_calls),
+            min(call.lineno for call in agent_calls),
+            "_init_jwt_signer() must run before the database-touching startup helpers",
+        )
+
+    def test_init_jwt_signer_not_in_post_fork(self):
+        calls = self._method_calls("_post_fork", "_init_jwt_signer")
+        self.assertEqual(
+            calls,
+            [],
+            "_init_jwt_signer() must NOT run in _post_fork: per-worker key resolution would fork the signing key",
+        )
+
+
+class TestVerifierServerInitJwtSigner(unittest.TestCase):
+    """Test cases for VerifierServer._init_jwt_signer()."""
+
+    class _KeylimeLikeParser(configparser.RawConfigParser):
+        """Mimics keylime.config.get: an absent option returns '' (the
+        module-level default fallback) instead of raising, and the
+        WORK_DIR attribute the wiring reads is set at construction."""
+
+        def __init__(self, work_dir: str, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.WORK_DIR = work_dir
+
+        def get(self, section, option, *, fallback="", **kwargs):
+            return super().get(section, option, fallback=fallback, **kwargs)
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp_dir, ignore_errors=True)
+
+    def _server(self):
+        # Create instance without calling __init__ to avoid port binding
+        return VerifierServer.__new__(VerifierServer)
+
+    def _patched_config(self, **values):
+        mock_config = MagicMock()
+        mock_config.WORK_DIR = self.tmp_dir
+        defaults = {
+            "jwt_signing_algorithm": "ES256",
+            "jwt_signing_key": "",
+            "jwt_signing_key_password": "",
+            "jwt_issuer": "",
+            "jwt_expiration_seconds": "300",
+        }
+        defaults.update(values)
+
+        # The mocks are option-name aware and honor the fallback, so a
+        # test fails if the code reads a wrong option name or drops a
+        # fallback (the 2.5-compatibility mechanism)
+        def get(_component, option, fallback=None, **_kwargs):
+            return defaults.get(option, fallback)
+
+        def getint(_component, option, fallback=None, **_kwargs):
+            value = defaults.get(option, fallback)
+            return int(value) if value is not None else fallback
+
+        mock_config.get.side_effect = get
+        mock_config.getint.side_effect = getint
+        return patch("keylime.web.verifier_server.config", mock_config)
+
+    def test_init_jwt_signer_autogenerates_and_persists(self):
+        """With no jwt_signing_key configured, a key is generated and persisted."""
+        server = self._server()
+        with self._patched_config():
+            server._init_jwt_signer()  # pylint: disable=protected-access
+
+        persisted = os.path.join(self.tmp_dir, "signing", "jwt_signing_key.pem")
+        self.assertTrue(os.path.exists(persisted))
+        self.assertEqual(server.jwt_signer.algorithm, "ES256")
+        self.assertIsNotNone(server.jwt_signer.kid)
+
+    def test_init_jwt_signer_reuses_persisted_key(self):
+        """A second initialization reuses the persisted key (same kid)."""
+        first = self._server()
+        with self._patched_config():
+            first._init_jwt_signer()  # pylint: disable=protected-access
+
+        second = self._server()
+        with self._patched_config():
+            second._init_jwt_signer()  # pylint: disable=protected-access
+
+        self.assertEqual(first.jwt_signer.kid, second.jwt_signer.kid)
+
+    def test_init_jwt_signer_without_issuer_leaves_signer_unable_to_sign(self):
+        """The signer is instantiated with no issuer and refuses to sign."""
+        server = self._server()
+        with self._patched_config():
+            server._init_jwt_signer()  # pylint: disable=protected-access
+
+        self.assertIsNone(server.jwt_signer.issuer)
+        with self.assertRaises(jwt.JwtSigningError):
+            server.jwt_signer.sign({})
+
+    def test_init_jwt_signer_with_configured_issuer_signs(self):
+        """A configured jwt_issuer produces a signer that signs tokens carrying it."""
+        server = self._server()
+        with self._patched_config(jwt_issuer="https://verifier.example.com"):
+            server._init_jwt_signer()  # pylint: disable=protected-access
+
+        self.assertEqual(server.jwt_signer.issuer, "https://verifier.example.com")
+        token = server.jwt_signer.sign({})
+        payload = token.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        self.assertEqual(claims["iss"], "https://verifier.example.com")
+
+    def test_init_jwt_signer_invalid_expiration_is_clear_error(self):
+        """A non-integer jwt_expiration_seconds names the option instead of a raw ValueError."""
+        server = self._server()
+        with self._patched_config(jwt_expiration_seconds="twenty"):
+            with self.assertRaises(jwt.JwtSigningError) as ctx:
+                server._init_jwt_signer()  # pylint: disable=protected-access
+        self.assertIn("jwt_expiration_seconds", str(ctx.exception))
+
+    def test_init_jwt_signer_blank_values_behave_as_absent(self):
+        """Blank jwt_* lines (e.g. a re-rendered config) fall back to the defaults."""
+        parser = self._KeylimeLikeParser(self.tmp_dir)
+        parser.read_string(
+            "[verifier]\n"
+            "jwt_signing_algorithm = \n"
+            "jwt_signing_key = \n"
+            "jwt_signing_key_password = \n"
+            "jwt_issuer = \n"
+            "jwt_expiration_seconds = \n"
+        )
+        server = self._server()
+        with patch("keylime.web.verifier_server.config", parser):
+            server._init_jwt_signer()  # pylint: disable=protected-access
+
+        self.assertEqual(server.jwt_signer.algorithm, "ES256")
+        self.assertIsNotNone(server.jwt_signer.kid)  # key auto-generated
+        self.assertIsNone(server.jwt_signer.issuer)
+
+    def test_init_jwt_signer_absent_options_fall_back(self):
+        """A config without any jwt_* options (pre-2.6) uses the defaults."""
+        parser = self._KeylimeLikeParser(self.tmp_dir)
+        parser.read_string("[verifier]\nuuid = some-verifier\n")
+        server = self._server()
+        with patch("keylime.web.verifier_server.config", parser):
+            server._init_jwt_signer()  # pylint: disable=protected-access
+
+        self.assertEqual(server.jwt_signer.algorithm, "ES256")
+        self.assertIsNotNone(server.jwt_signer.kid)
+
+    def test_init_jwt_signer_corrupt_persisted_key_fails(self):
+        """A corrupt persisted key file is a hard error, not a regeneration."""
+        persisted = os.path.join(self.tmp_dir, "signing", "jwt_signing_key.pem")
+        os.makedirs(os.path.dirname(persisted), mode=0o700)
+        with open(persisted, "wb") as f:
+            f.write(b"corrupt")
+        os.chmod(persisted, 0o600)
+
+        server = self._server()
+        with self._patched_config():
+            with self.assertRaises(jwt.JwtKeyError):
+                server._init_jwt_signer()  # pylint: disable=protected-access
 
 
 if __name__ == "__main__":
