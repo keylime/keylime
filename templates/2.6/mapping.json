@@ -6,7 +6,12 @@
             "add": {
                 "shutdown_drain_timeout": "10",
                 "max_workers": "16",
-                "auto_recover_attestation_failures": "False"
+                "auto_recover_attestation_failures": "False",
+                "jwt_signing_key": "",
+                "jwt_signing_key_password": "",
+                "jwt_signing_algorithm": "ES256",
+                "jwt_issuer": "",
+                "jwt_expiration_seconds": "300"
             }
         },
         "registrar": {

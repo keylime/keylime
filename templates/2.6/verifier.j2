@@ -344,6 +344,44 @@ auto_recover_attestation_failures = {{ verifier.auto_recover_attestation_failure
 # Floating point values accepted here.
 shutdown_drain_timeout = {{ verifier.shutdown_drain_timeout }}
 
+# Path to the PEM private key used to sign the JWT attestation results
+# returned by the evidence verification API. The file must be a regular
+# file, readable by the verifier, with mode 0600 (group/world access is
+# refused). Leave empty to have the verifier generate a key automatically
+# (ES256 by default) and persist it to signing/jwt_signing_key.pem under
+# its working directory (/var/lib/keylime by default), reusing it across
+# restarts. That location must be on persistent storage: if the working
+# directory does not survive a restart, a new key (and therefore a new
+# kid) is generated on every boot. Note this is a different directory from
+# signing_keys/, which holds the DSSE runtime policy keys.
+jwt_signing_key = {{ verifier.jwt_signing_key }}
+
+# Password to decrypt the JWT signing key, if the key file is encrypted.
+# Only applies when jwt_signing_key is set: an auto-generated key is always
+# written unencrypted with mode 0600. The password protects the key at
+# rest, so the configuration file holding it must be protected accordingly
+# (root-owned, not world-readable).
+jwt_signing_key_password = {{ verifier.jwt_signing_key_password }}
+
+# JWT signing algorithm. Any asymmetric algorithm supported by the JWT
+# library is accepted, except "none" and the symmetric HS256/HS384/HS512
+# family, which are always rejected. Algorithm names are case-sensitive,
+# and only IANA-registered JOSE names are interoperable with strict
+# relying parties: use "EdDSA", not "Ed25519"/"Ed448".
+# Default: ES256
+jwt_signing_algorithm = {{ verifier.jwt_signing_algorithm }}
+
+# Issuer URI for the iss claim of the signed attestation results (e.g.,
+# https://verifier.example.com). Leave empty for now and the verifier
+# will not issue any tokens until an issuer is configured; deriving the
+# issuer from the verifier TLS certificate's Subject Alternative Name
+# when this option is empty is planned for a future update.
+jwt_issuer = {{ verifier.jwt_issuer }}
+
+# Lifetime of the signed attestation results, in seconds.
+# Default: 300
+jwt_expiration_seconds = {{ verifier.jwt_expiration_seconds }}
+
 [revocations]
 
 # List of revocation notification methods to enable.
