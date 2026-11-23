@@ -1380,15 +1380,21 @@ class AllowlistHandler(BaseHandler):
                 raise
 
             try:
-                agent = session.query(VerfierMain).filter_by(ima_policy_id=runtime_policy.id).one_or_none()
+                agents = session.query(VerfierMain).filter_by(ima_policy_id=runtime_policy.id).all()
             except SQLAlchemyError as e:
                 logger.error("SQLAlchemy Error: %s", e)
                 raise
-            if agent is not None:
+            if agents:
+                max_listed = 5
+                agent_ids = [str(a.agent_id) for a in agents[:max_listed]]
+                total = len(agents)
+                ids_str = ", ".join(agent_ids)
+                if total > max_listed:
+                    ids_str += f" (and {total - max_listed} more)"
                 web_util.echo_json_response(
                     self.req_handler,
                     409,
-                    f"Can't delete allowlist as it's currently in use by agent {agent.agent_id}",
+                    f"Can't delete allowlist as it's currently in use by {total} agent(s): {ids_str}",
                 )
                 return
 
@@ -1731,15 +1737,21 @@ class MbpolicyHandler(BaseHandler):
                 raise
 
             try:
-                agent = session.query(VerfierMain).filter_by(mb_policy_id=mbpolicy.id).one_or_none()
+                agents = session.query(VerfierMain).filter_by(mb_policy_id=mbpolicy.id).all()
             except SQLAlchemyError as e:
                 logger.error("SQLAlchemy Error: %s", e)
                 raise
-            if agent is not None:
+            if agents:
+                max_listed = 5
+                agent_ids = [str(a.agent_id) for a in agents[:max_listed]]
+                total = len(agents)
+                ids_str = ", ".join(agent_ids)
+                if total > max_listed:
+                    ids_str += f" (and {total - max_listed} more)"
                 web_util.echo_json_response(
                     self.req_handler,
                     409,
-                    f"Can't delete mb_policy as it's currently in use by agent {agent.agent_id}",
+                    f"Can't delete mb_policy as it's currently in use by {total} agent(s): {ids_str}",
                 )
                 return
 
