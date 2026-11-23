@@ -376,8 +376,8 @@ class TestStoreAttestationStateExecution(unittest.TestCase):
 
     @patch("keylime.cloud_verifier_tornado.session_context")
     @patch("keylime.cloud_verifier_tornado.logger")
-    def test_store_attestation_state_executes_with_session_get(self, _mock_logger, mock_session_context):
-        """Verify store_attestation_state() executes and uses session.get()."""
+    def test_store_attestation_state_executes_with_query_filter(self, _mock_logger, mock_session_context):
+        """Verify store_attestation_state() executes and uses session.query().filter_by()."""
         from keylime.cloud_verifier_tornado import (  # pylint: disable=import-outside-toplevel
             AgentAttestState,
             store_attestation_state,
@@ -390,7 +390,8 @@ class TestStoreAttestationStateExecution(unittest.TestCase):
 
         # Create mock agent from database
         mock_agent = MagicMock()
-        mock_session.get.return_value = mock_agent
+        mock_query = mock_session.query.return_value
+        mock_query.filter_by.return_value.first.return_value = mock_agent
 
         # Create mock attestation state
         mock_state = MagicMock(spec=AgentAttestState)
@@ -407,8 +408,9 @@ class TestStoreAttestationStateExecution(unittest.TestCase):
         # Execute store_attestation_state
         store_attestation_state(mock_state)
 
-        # Verify session.get() was called with correct arguments (SQLAlchemy 2.0 API)
-        mock_session.get.assert_called_once_with(VerfierMain, "test_agent_123")
+        # Verify session.query().filter_by() was called
+        mock_session.query.assert_called_with(VerfierMain)
+        mock_query.filter_by.assert_called_with(agent_id="test_agent_123")
 
         # Verify attributes were set
         self.assertEqual(mock_agent.boottime, 12345)
@@ -431,11 +433,11 @@ class TestStoreAttestationStateExecution(unittest.TestCase):
             store_attestation_state,
         )
 
-        # Create mock session that raises exception
+        # Create mock session that raises exception on query
         mock_session = MagicMock()
         mock_session_context.return_value.__enter__.return_value = mock_session
         mock_session_context.return_value.__exit__.return_value = None
-        mock_session.get.side_effect = SQLAlchemyError("Database error")
+        mock_session.query.side_effect = SQLAlchemyError("Database error")
 
         # Create mock attestation state
         mock_state = MagicMock(spec=AgentAttestState)
@@ -574,16 +576,17 @@ class TestSQLAlchemy20APIUsage(unittest.TestCase):
             source = f.read()
 
         # Look for the SQLAlchemy 2.0 pattern: session.get(Model, id)
-        # This should appear in store_attestation_state() and AgentsHandler.delete()
+        # This should appear in AgentsHandler.delete()
+        # store_attestation_state() uses session.query().filter_by() to support
+        # filtering by enrollment_generation
         modern_pattern = r"session\.get\(VerfierMain,"
 
         matches = re.findall(modern_pattern, source)
 
-        # We expect at least 2 occurrences (store_attestation_state and AgentsHandler.delete)
         self.assertGreaterEqual(
             len(matches),
-            2,
-            f"Expected at least 2 uses of session.get(VerfierMain, ...) in cloud_verifier_tornado.py, "
+            1,
+            f"Expected at least 1 use of session.get(VerfierMain, ...) in cloud_verifier_tornado.py, "
             f"found {len(matches)}. The SQLAlchemy 2.0 API should be used instead of deprecated Query.get().",
         )
 

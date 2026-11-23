@@ -292,6 +292,7 @@ def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, Any]:
         "last_successful_attestation",
         "tpm_clockinfo",
         "accept_attestations",
+        "enrollment_generation",
     ]
     agent_dict = {}
     for field in fields:
@@ -341,9 +342,19 @@ def verifier_read_policy_from_cache(stored_agent: VerfierMain) -> str:
     return ima_policy
 
 
-def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
+def verifier_db_delete_agent(session: Session, agent_id: str, expected_generation: Optional[int] = None) -> None:
     # Cancel any pending timeout for PUSH mode agents
     push_agent_monitor.cancel_agent_timeout(agent_id)
+
+    # When called with expected_generation, verify the agent row still belongs
+    # to the expected enrollment before deleting anything.  A mismatch means
+    # the agent was already re-enrolled and we must not touch the new data.
+    if expected_generation is not None:
+        gen_row = session.query(VerfierMain.enrollment_generation).filter_by(agent_id=agent_id).first()
+        current_gen: Optional[int] = gen_row[0] if gen_row is not None else None
+        if current_gen is None or current_gen != expected_generation:
+            logger.info("Agent %s generation %d already replaced, skipping cleanup", agent_id, expected_generation)
+            return
 
     get_AgentAttestStates().delete_by_agent_id(agent_id)
     # Delete in FK dependency order:
@@ -354,7 +365,7 @@ def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
     #   3. VerifierAttestations (legacy attestations table, FK to agent)
     # Agent and policies:
     #   4. agent
-    #   5. allowlists/mbpolicies (by name, not FK)
+    #   5. allowlists/mbpolicies (by name, only if no other agent references them)
     # NOTE: Authentication sessions are NOT deleted when an agent is removed.
     # This allows agents to maintain their authentication tokens through policy
     # updates (DELETE + POST) and re-enrollment without needing to re-authenticate.
@@ -363,8 +374,19 @@ def verifier_db_delete_agent(session: Session, agent_id: str) -> None:
     Attestation.delete_all(agent_id=agent_id, session_=session)
     session.query(VerifierAttestations).filter_by(agent_id=agent_id).delete()
     session.query(VerfierMain).filter_by(agent_id=agent_id).delete()
-    session.query(VerifierAllowlist).filter_by(name=agent_id).delete()
-    session.query(VerifierMbpolicy).filter_by(name=agent_id).delete()
+
+    # Only delete auto-named policies if no other agent references them
+    allowlist_row = session.query(VerifierAllowlist).filter_by(name=agent_id).first()
+    allowlist_id = allowlist_row.id if allowlist_row is not None else None
+    if (
+        allowlist_id is not None
+        and not session.query(VerfierMain.agent_id).filter_by(ima_policy_id=allowlist_id).first()
+    ):
+        session.query(VerifierAllowlist).filter_by(name=agent_id).delete()
+    mbpolicy_row = session.query(VerifierMbpolicy).filter_by(name=agent_id).first()
+    mbpolicy_id = mbpolicy_row.id if mbpolicy_row is not None else None
+    if mbpolicy_id is not None and not session.query(VerfierMain.agent_id).filter_by(mb_policy_id=mbpolicy_id).first():
+        session.query(VerifierMbpolicy).filter_by(name=agent_id).delete()
     session.commit()
 
 
@@ -396,16 +418,20 @@ def _complete_deletion_if_terminated(agent_id: str) -> None:
         logger.exception("SQLAlchemy Error completing deletion for agent %s", agent_id)
 
 
-def store_attestation_state(agentAttestState: AgentAttestState) -> None:
+def store_attestation_state(agentAttestState: AgentAttestState, expected_generation: Optional[int] = None) -> None:
     # Only store if IMA log was evaluated
     if agentAttestState.get_ima_pcrs():
         agent_id = agentAttestState.agent_id
         try:
             with session_context() as session:
-                update_agent = session.get(VerfierMain, agentAttestState.get_agent_id())  # type: ignore[attr-defined]
+                query = session.query(VerfierMain).filter_by(agent_id=agentAttestState.get_agent_id())
+                if expected_generation is not None:
+                    query = query.filter(VerfierMain.enrollment_generation == expected_generation)  # pyright: ignore
+                update_agent = query.first()
                 if update_agent is None:
                     logger.warning(
-                        "Agent %s no longer in database, skipping attestation state storage",
+                        "Agent %s no longer in database (or generation mismatch), "
+                        "skipping attestation state storage",
                         agent_id,
                     )
                     return
@@ -625,6 +651,14 @@ class AgentsHandler(BaseHandler):
                             agent_id,
                         )
                         return
+                    # Tombstone: TERMINATED agents are logically deleted.
+                    if agent.operational_state == states.TERMINATED:  # pyright: ignore
+                        web_util.echo_json_response(self.req_handler, 404, "agent id not found")
+                        logger.info(
+                            "GET returning 404 response. agent %s is TERMINATED (pending deletion).",
+                            agent_id,
+                        )
+                        return
                     response = cloud_verifier_common.process_get_status(agent)
                     web_util.echo_json_response(self.req_handler, 200, "Success", response)
                 else:
@@ -679,16 +713,29 @@ class AgentsHandler(BaseHandler):
                                 aid,
                             )
                             continue
+                        if agent.operational_state == states.TERMINATED:  # pyright: ignore
+                            logger.debug(
+                                "Agent %s is TERMINATED (pending deletion), skipping in bulk GET.",
+                                aid,
+                            )
+                            continue
                         json_response[aid] = cloud_verifier_common.process_get_status(agent)
 
                     web_util.echo_json_response(self.req_handler, 200, "Success", json_response)
                 else:
                     if ("verifier" in rest_params) and (rest_params["verifier"] != ""):
                         json_response_list = (
-                            session.query(VerfierMain.agent_id).filter_by(verifier_id=rest_params["verifier"]).all()
+                            session.query(VerfierMain.agent_id)
+                            .filter_by(verifier_id=rest_params["verifier"])
+                            .filter(VerfierMain.operational_state != states.TERMINATED)
+                            .all()
                         )
                     else:
-                        json_response_list = session.query(VerfierMain.agent_id).all()
+                        json_response_list = (
+                            session.query(VerfierMain.agent_id)
+                            .filter(VerfierMain.operational_state != states.TERMINATED)
+                            .all()
+                        )
 
                     web_util.echo_json_response(self.req_handler, 200, "Success", {"uuids": json_response_list})
 
@@ -844,7 +891,46 @@ class AgentsHandler(BaseHandler):
                         web_util.echo_json_response(self.req_handler, 404, "agent id not found")
                         return
                     update_agent.operational_state = states.TERMINATED  # pyright: ignore
+
+                    # Eagerly clean up auto-named policies so they appear
+                    # deleted together with the agent (tombstone consistency).
+                    # Null out the FKs first so the policy rows can be deleted
+                    # in the same transaction.
+                    ima_policy_id = update_agent.ima_policy_id
+                    mb_policy_id = update_agent.mb_policy_id
+                    update_agent.ima_policy_id = None  # pyright: ignore
+                    update_agent.mb_policy_id = None  # pyright: ignore
                     session.add(update_agent)
+                    session.flush()
+
+                    if ima_policy_id is not None:
+                        is_auto = session.query(VerifierAllowlist.id).filter_by(id=ima_policy_id, name=agent_id).first()
+                        if is_auto:
+                            other_ref = (
+                                session.query(VerfierMain.agent_id)
+                                .filter(
+                                    VerfierMain.ima_policy_id == ima_policy_id,
+                                    VerfierMain.agent_id != agent_id,
+                                )
+                                .first()
+                            )
+                            if not other_ref:
+                                session.query(VerifierAllowlist).filter_by(id=ima_policy_id).delete()
+
+                    if mb_policy_id is not None:
+                        is_auto = session.query(VerifierMbpolicy.id).filter_by(id=mb_policy_id, name=agent_id).first()
+                        if is_auto:
+                            other_ref = (
+                                session.query(VerfierMain.agent_id)
+                                .filter(
+                                    VerfierMain.mb_policy_id == mb_policy_id,
+                                    VerfierMain.agent_id != agent_id,
+                                )
+                                .first()
+                            )
+                            if not other_ref:
+                                session.query(VerifierMbpolicy).filter_by(id=mb_policy_id).delete()
+
                     web_util.echo_json_response(self.req_handler, 202, "Accepted")
                     logger.info("DELETE (pull mode) returning 202 response for agent id: %s", agent_id)
             except SQLAlchemyError as e:
@@ -946,6 +1032,7 @@ class AgentsHandler(BaseHandler):
                         "last_received_quote": 0,
                         "last_successful_attestation": 0,
                         "accept_attestations": True,
+                        "enrollment_generation": 0,
                     }
 
                     if "verifier_ip" in json_body:
@@ -1019,16 +1106,31 @@ class AgentsHandler(BaseHandler):
                             logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
                             raise e
 
+                        next_generation = 0
                         if new_agent_count > 0:
-                            web_util.echo_json_response(
-                                self.req_handler,
-                                409,
-                                f"Agent of uuid {agent_id} already exists. Please use delete or update.",
-                            )
-                            logger.warning("Agent of uuid %s already exists", agent_id)
-                            return
+                            existing_agent = session.query(VerfierMain).filter_by(agent_id=agent_id).first()
+                            if existing_agent and cast(int, existing_agent.operational_state) == states.TERMINATED:
+                                logger.info(
+                                    "Agent %s is TERMINATED (pending deletion). Cleaning up before re-enrollment.",
+                                    agent_id,
+                                )
+                                next_generation = existing_agent.enrollment_generation + 1  # pyright: ignore
+                                clear_agent_policy_cache(agent_id)
+                                verifier_db_delete_agent(session, agent_id)
+                            else:
+                                web_util.echo_json_response(
+                                    self.req_handler,
+                                    409,
+                                    f"Agent of uuid {agent_id} already exists. Please use delete or update.",
+                                )
+                                logger.warning("Agent of uuid %s already exists", agent_id)
+                                return
+
+                        # Set enrollment generation (incremented on re-enrollment)
+                        agent_data["enrollment_generation"] = next_generation
 
                         # Write IMA policy to database if needed
+                        ima_policy_pending_update: Optional[Dict[str, Any]] = None
                         if not runtime_policy_name and not runtime_policy:
                             logger.info("IMA policy data not provided with request! Using default empty IMA policy.")
                             runtime_policy = json.dumps(cast(Dict[str, Any], ima.EMPTY_RUNTIME_POLICY))
@@ -1081,6 +1183,11 @@ class AgentsHandler(BaseHandler):
                                     runtime_policy_stored = VerifierAllowlist(**runtime_policy_db_format)
                                     session.add(runtime_policy_stored)
                                     session.commit()
+                                elif (
+                                    runtime_policy_name == agent_id
+                                    and runtime_policy_stored.checksum != runtime_policy_db_format.get("checksum")
+                                ):
+                                    ima_policy_pending_update = runtime_policy_db_format
                             except SQLAlchemyError as e:
                                 logger.error(
                                     "SQLAlchemy Error while updating ima policy for agent ID %s: %s", agent_id, e
@@ -1134,15 +1241,17 @@ class AgentsHandler(BaseHandler):
                                 logger.error("SQLAlchemy Error for agent ID %s: %s", agent_id, e)
                                 raise
 
-                            # Prevent overwriting existing mb_policy
+                            # Update auto-named mb_policy in-place when content differs
                             if mb_policy and mb_policy_stored:
-                                web_util.echo_json_response(
-                                    self.req_handler,
-                                    409,
-                                    f"mb_policy with name {mb_policy_name} already exists. You can delete the mb_policy from the verifier.",
-                                )
-                                logger.warning("mb_policy with name %s already exists", mb_policy_name)
-                                return
+                                mb_policy_db_format = mba.mb_policy_db_contents(mb_policy_name, mb_policy)
+                                if mb_policy_stored.mb_policy != mb_policy_db_format["mb_policy"]:
+                                    logger.warning(
+                                        "Auto-named measured boot policy '%s' already exists with different content. "
+                                        "Updating in-place; other agents sharing this policy will be affected.",
+                                        mb_policy_name,
+                                    )
+                                    mb_policy_stored.mb_policy = mb_policy_db_format["mb_policy"]
+                                    session.commit()
 
                         # Store the policy into database if not stored
                         if mb_policy_stored is None:
@@ -1156,6 +1265,18 @@ class AgentsHandler(BaseHandler):
                                     "SQLAlchemy Error while updating mb_policy for agent ID %s: %s", agent_id, e
                                 )
                                 raise
+
+                        # Apply deferred IMA policy update-in-place now that all
+                        # validation has passed (MB policy checks, etc.).
+                        if ima_policy_pending_update is not None:
+                            logger.warning(
+                                "Auto-named IMA policy '%s' already exists with different content. "
+                                "Updating in-place; other agents sharing this policy will be affected.",
+                                runtime_policy_name,
+                            )
+                            for key, val in ima_policy_pending_update.items():
+                                if key != "name":
+                                    setattr(runtime_policy_stored, key, val)
 
                         # Write the agent to the database, attaching associated stored ima_policy and mb_policy
                         try:
@@ -1380,17 +1501,27 @@ class AllowlistHandler(BaseHandler):
                 raise
 
             try:
-                agent = session.query(VerfierMain).filter_by(ima_policy_id=runtime_policy.id).one_or_none()
+                agents = session.query(VerfierMain).filter_by(ima_policy_id=runtime_policy.id).all()
             except SQLAlchemyError as e:
                 logger.error("SQLAlchemy Error: %s", e)
                 raise
-            if agent is not None:
+            active_agents = [a for a in agents if cast(int, a.operational_state) != states.TERMINATED]
+            if active_agents:
                 web_util.echo_json_response(
                     self.req_handler,
                     409,
-                    f"Can't delete allowlist as it's currently in use by agent {agent.agent_id}",
+                    f"Can't delete allowlist as it's currently in use by agent {active_agents[0].agent_id}",
                 )
                 return
+
+            terminated_agents = [a for a in agents if cast(int, a.operational_state) == states.TERMINATED]
+            for agent in terminated_agents:
+                logger.info(
+                    "Deleting TERMINATED agent %s before policy cleanup.",
+                    agent.agent_id,
+                )
+                clear_agent_policy_cache(str(agent.agent_id))
+                verifier_db_delete_agent(session, str(agent.agent_id))
 
             try:
                 session.query(VerifierAllowlist).filter_by(name=allowlist_name).delete()
@@ -1731,17 +1862,27 @@ class MbpolicyHandler(BaseHandler):
                 raise
 
             try:
-                agent = session.query(VerfierMain).filter_by(mb_policy_id=mbpolicy.id).one_or_none()
+                agents = session.query(VerfierMain).filter_by(mb_policy_id=mbpolicy.id).all()
             except SQLAlchemyError as e:
                 logger.error("SQLAlchemy Error: %s", e)
                 raise
-            if agent is not None:
+            active_agents = [a for a in agents if cast(int, a.operational_state) != states.TERMINATED]
+            if active_agents:
                 web_util.echo_json_response(
                     self.req_handler,
                     409,
-                    f"Can't delete mb_policy as it's currently in use by agent {agent.agent_id}",
+                    f"Can't delete mb_policy as it's currently in use by agent {active_agents[0].agent_id}",
                 )
                 return
+
+            terminated_agents = [a for a in agents if cast(int, a.operational_state) == states.TERMINATED]
+            for agent in terminated_agents:
+                logger.info(
+                    "Deleting TERMINATED agent %s before policy cleanup.",
+                    agent.agent_id,
+                )
+                clear_agent_policy_cache(str(agent.agent_id))
+                verifier_db_delete_agent(session, str(agent.agent_id))
 
             try:
                 session.query(VerifierMbpolicy).filter_by(name=mb_policy_name).delete()
@@ -2257,12 +2398,15 @@ async def update_agent_api_version(
                     .filter_by(agent_id=agent_id)
                     .filter(VerfierMain.operational_state != states.TERMINATED)  # pyright: ignore
                     .filter(VerfierMain.operational_state != states.TENANT_FAILED)  # pyright: ignore
+                    .filter(VerfierMain.enrollment_generation == agent_db["enrollment_generation"])  # pyright: ignore
                     .update(agent_db)  # pyright: ignore
                 )
                 # session.commit() is automatically called by context manager
 
             if rows == 0:
-                logger.info("Agent %s was terminated or stopped during version negotiation, stopping", agent_id)
+                logger.info(
+                    "Agent %s was terminated, stopped, or re-enrolled during version negotiation, stopping", agent_id
+                )
                 _complete_deletion_if_terminated(agent_id)
                 return None
 
@@ -2288,6 +2432,8 @@ async def invoke_get_quote(
     need_pubkey: bool,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> None:
+    quote_generation: Optional[int] = agent.get("enrollment_generation")
+
     # Clear tracking only — the timeout already fired (this *is* the callback),
     # so there is no handle to cancel via remove_timeout().  Done before the
     # shutdown check so tracking state is cleaned up even on early return.
@@ -2392,7 +2538,7 @@ async def invoke_get_quote(
                 asyncio.ensure_future(process_agent(agent, states.INVALID_QUOTE, failure))
 
             # store the attestation state
-            store_attestation_state(agentAttestState)
+            store_attestation_state(agentAttestState, expected_generation=quote_generation)
 
         except Exception as e:
             logger.exception(e)
@@ -2598,9 +2744,20 @@ async def process_agent(
                     .first()
                 )
 
-                # Extract MB policy data within session context
-                if stored_agent and stored_agent.mb_policy:
-                    mb_policy_data = stored_agent.mb_policy.mb_policy
+                # Extract MB policy data and enrollment generation within session context
+                if stored_agent:
+                    if stored_agent.mb_policy:
+                        mb_policy_data = stored_agent.mb_policy.mb_policy
+                    if agent.get("enrollment_generation") is None:
+                        agent["enrollment_generation"] = stored_agent.enrollment_generation
+                    elif agent["enrollment_generation"] != stored_agent.enrollment_generation:
+                        logger.info(
+                            "Agent %s generation %s superseded by %s, stopping stale poll",
+                            agent["agent_id"],
+                            agent["enrollment_generation"],
+                            stored_agent.enrollment_generation,
+                        )
+                        stored_agent = None
 
             except SQLAlchemyError as e:
                 logger.error("SQLAlchemy Error for agent ID %s: %s", agent["agent_id"], e)
@@ -2618,7 +2775,9 @@ async def process_agent(
 
             # Second database operation - delete agent
             with session_context() as session:
-                verifier_db_delete_agent(session, agent["agent_id"])
+                verifier_db_delete_agent(
+                    session, agent["agent_id"], expected_generation=agent.get("enrollment_generation")
+                )
             return
 
         # if the user tells us to stop polling because the tenant quote check failed
@@ -2663,6 +2822,9 @@ async def process_agent(
                             .filter_by(agent_id=agent["agent_id"])
                             .filter(VerfierMain.operational_state != states.TERMINATED)  # pyright: ignore
                             .filter(VerfierMain.operational_state != states.TENANT_FAILED)  # pyright: ignore
+                            .filter(
+                                VerfierMain.enrollment_generation == agent["enrollment_generation"]
+                            )  # pyright: ignore
                             .update(agent)  # type: ignore[arg-type]
                         )
                         # session.commit() is automatically called by context manager
@@ -2684,12 +2846,15 @@ async def process_agent(
             # between our initial read and this write, the update matches
             # zero rows and we stop polling instead of reverting the agent
             # back to an active state.
+            # The enrollment_generation filter prevents updating a stale
+            # agent row after re-enrollment.
             with session_context() as session:
                 rows = (
                     session.query(VerfierMain)
                     .filter_by(agent_id=agent_db["agent_id"])
                     .filter(VerfierMain.operational_state != states.TERMINATED)  # pyright: ignore
                     .filter(VerfierMain.operational_state != states.TENANT_FAILED)  # pyright: ignore
+                    .filter(VerfierMain.enrollment_generation == agent_db["enrollment_generation"])  # pyright: ignore
                     .update(agent_db)  # pyright: ignore
                 )
                 # session.commit() is automatically called by context manager
