@@ -36,6 +36,17 @@ class TestConvertConfig(unittest.TestCase):
         # Check that the file was correctly parsed
         self.assertEqual(value, "existing")
 
+    def test_get_config_preserves_input_order(self) -> None:
+        current = os.path.join(CONFIG_DIR, "comp1.conf")
+        existing = os.path.join(CONFIG_DIR, "comp1_exist.conf")
+        old = os.path.join(CONFIG_DIR, "comp1_old.conf")
+
+        config = convert_config.get_config([[current, old], [existing, current]])
+        self.assertEqual(config.get("comp1", "test_option"), "existing")
+
+        config = convert_config.get_config([[existing, old], [current, existing]])
+        self.assertEqual(config.get("comp1", "test_option"), "current")
+
     def test_get_config_no_input(self) -> None:
         """Test get_config() without providing input"""
 

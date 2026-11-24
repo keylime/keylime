@@ -249,9 +249,10 @@ def get_config(config_files: List[List[str]], logger: Logger = logging.getLogger
         logger.debug("No input provided: using %s as input", CONFIG_FILES)
         files = list(x for x in CONFIG_FILES if os.path.exists(x))
     else:
-        files = list(x for x in set(flat) if os.path.exists(x))
+        input_files = list(dict.fromkeys(flat))
+        files = [path for path in input_files if os.path.exists(path)]
         if not files:
-            raise Exception(f"None of the provided files in {set(flat)} exist")
+            raise Exception(f"None of the provided files in {input_files} exist")
 
     if not files:
         # The configuration files doesn't exist, try old file
@@ -760,7 +761,8 @@ def main() -> None:
         help="Input keylime configuration file to "
         "process. If not provided, it tries to use the "
         "installed Keylime configuration. Can be provided "
-        "multiple times",
+        "multiple times. Files are merged in the order they are first listed, "
+        "with later files overriding earlier ones.",
         default=[],
         action="append",
         nargs="+",
