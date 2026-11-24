@@ -10,7 +10,7 @@ import os
 import pathlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from importlib import util
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, TextIO, Tuple
+from typing import TYPE_CHECKING, AbstractSet, Any, Dict, List, Optional, TextIO, Tuple
 
 import psutil
 
@@ -70,47 +70,41 @@ BASE_EXCLUDE_DIRS: List[str] = [
 ]
 
 
-def exclude_dirs_based_on_rootfs(dirs_to_exclude: List[str]) -> List[str]:
-    """
-    Build a list of directories to exclude, as they don't match the root filesystem.
+def exclude_dirs_based_on_rootfs(dirs_to_exclude: List[str], rootfs: str = "/") -> List[str]:
+    """Find mounts of a different filesystem type under the selected root.
 
-    :param dirs_to_exclude: list of directories to exclude
-    :return: a list of strings, that contains directories we need to exclude
+    Exclusion paths start at the root of the scan, like dirs_to_exclude.
     """
-    rootfs = None
+    rootfs_path = pathlib.Path(rootfs).resolve()
+    mount_types = {
+        pathlib.Path(partition.mountpoint): partition.fstype for partition in psutil.disk_partitions(all=True)
+    }
+    rootfs_type = next(
+        (mount_types[path] for path in (rootfs_path, *rootfs_path.parents) if path in mount_types),
+        None,
+    )
+    if rootfs_type is None:
+        return []
+
+    excluded = [pathlib.PurePath(directory) for directory in dirs_to_exclude]
     to_exclude = []
-    # First we identify the root filesystem
-    disk_part = psutil.disk_partitions(all=True)
-    for pp in disk_part:
-        if pp.mountpoint == "/":
-            rootfs = pp.fstype
-            break
+    for mountpoint, filesystem in mount_types.items():
+        if filesystem == rootfs_type or not mountpoint.is_relative_to(rootfs_path):
+            continue
 
-    # Now we select mountpoints to exclude
-    for pp in disk_part:
-        if pp.fstype != rootfs:
-            to_exclude.append(pp.mountpoint)
-            logger.debug(
-                "exclude_dirs_based_on_rootfs(): excluding %s (fstype %s); rootfs: %s",
-                pp.mountpoint,
-                pp.fstype,
-                rootfs,
-            )
+        path_in_rootfs = pathlib.PurePath("/") / mountpoint.relative_to(rootfs_path)
+        if any(path_in_rootfs.is_relative_to(directory) for directory in excluded):
+            continue
 
-    trimmed_dirs = []
-    # Finally, let's trim this list down based on the existing
-    # dirs_to_exclude.
-    for dir_e in to_exclude:
-        matched = False
-        for cur in dirs_to_exclude:
-            if dir_e.startswith(cur):
-                matched = True
-                logger.debug("exclude_dirs_based_on_rootfs(): %s already covered by %s; skipping", dir_e, cur)
-                continue
-        if not matched:
-            trimmed_dirs.append(dir_e)
-    logger.debug("exclude_dirs_based_on_rootfs(): excluded dirs: %s", trimmed_dirs)
-    return trimmed_dirs
+        logger.debug(
+            "Excluding mount %s (fstype %s) from scan of %s (%s)",
+            mountpoint,
+            filesystem,
+            rootfs_path,
+            rootfs_type,
+        )
+        to_exclude.append(str(path_in_rootfs))
+    return to_exclude
 
 
 def _calculate_digest(prefix: str, fpath: str, alg: str, remove_prefix: bool) -> Tuple[bool, str, str]:
@@ -146,11 +140,17 @@ def _calculate_digest(prefix: str, fpath: str, alg: str, remove_prefix: bool) ->
 
 
 def _get_all_files(
-    root_dir: str, prefix: str, dirs_to_exclude: Optional[List[str]] = None, only_owned_by_root: bool = False
+    root_dir: str,
+    prefix: str,
+    dirs_to_exclude: Optional[List[str]] = None,
+    only_owned_by_root: bool = False,
+    mounts_to_exclude: AbstractSet[str] = frozenset(),
 ) -> List[str]:
-    """Find all files inside a directory recursively, skipping the directories
-    marked to be excluded and files not owned by root, if requested.
-    It is expected that root_dir and prefix are absolute paths."""
+    """Find files recursively, skipping excluded directories and mount points.
+
+    The optional ownership filter limits scans to root-owned files.
+    Both root_dir and prefix are absolute paths.
+    """
 
     if not dirs_to_exclude:
         dirs_to_exclude = []
@@ -159,8 +159,10 @@ def _get_all_files(
     subdirs = []
     with os.scandir(root_dir) as it:
         for entry in it:
-            # Skip symlinks
-            if entry.is_symlink():
+            relpath = entry.path
+            if prefix != "/" and entry.path.startswith(prefix):
+                relpath = entry.path[len(prefix) :]
+            if relpath in mounts_to_exclude or entry.is_symlink():
                 continue
 
             # If the entry is a file, add to the set of paths
@@ -180,10 +182,6 @@ def _get_all_files(
 
             # For directories, add the entry to the subdirectories
             if entry.is_dir():
-                relpath = entry.path
-                if prefix != "/" and entry.path.startswith(prefix):
-                    relpath = entry.path[len(prefix) :]
-
                 # Skip directories marked to be excluded from the search
                 if relpath in dirs_to_exclude:
                     logger.debug("Skipping '%s' that matches a directory path to exclude", entry.path)
@@ -192,7 +190,7 @@ def _get_all_files(
                 subdirs.append(entry.path)
 
     for d in subdirs:
-        paths.update(_get_all_files(d, prefix, dirs_to_exclude, only_owned_by_root))
+        paths.update(_get_all_files(d, prefix, dirs_to_exclude, only_owned_by_root, mounts_to_exclude))
 
     return list(paths)
 
@@ -226,15 +224,9 @@ def path_digests(
         logger.error("Invalid path, %s is not a directory", absfpath)
         return digests
 
-    # Let's first check if the root is not marked to be excluded.
-    if dirs_to_exclude is None:
-        dirs_to_exclude = []
-
-    if match_rootfs:
-        dirs_to_exclude.extend(exclude_dirs_based_on_rootfs(dirs_to_exclude))
-
+    mounts_to_exclude = set(exclude_dirs_based_on_rootfs([], absfpath)) if match_rootfs else set()
     # Get the paths to all files contained in the directory, recursively
-    paths = _get_all_files(absfpath, absfpath, dirs_to_exclude, only_owned_by_root)
+    paths = _get_all_files(absfpath, absfpath, dirs_to_exclude, only_owned_by_root, mounts_to_exclude)
 
     logger.debug("obtained %d paths", len(paths))
 
