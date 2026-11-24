@@ -10,7 +10,12 @@ import unittest
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.serialization import (
+    BestAvailableEncryption,
+    Encoding,
+    PrivateFormat,
+    load_pem_private_key,
+)
 
 from keylime.cert_utils import is_x509_cert
 from keylime.policy import sign_runtime_policy
@@ -50,6 +55,10 @@ class SignRuntimePolicy_Test(unittest.TestCase):
             {"backend": "x509", "keyfile": None, "keypath": None, "outcertfile": "cert.x509", "valid": True},
             {"backend": "x509", "keyfile": EC_PRIVKEY, "keypath": None, "outcertfile": "cert.x509", "valid": True},
             {"backend": "x509", "keyfile": RSA_PRIVKEY, "keypath": None, "outcertfile": "cert.x509", "valid": False},
+            # A public key is not a valid key to sign with, and neither is a file that is not a PEM key at all.
+            {"backend": "ecdsa", "keyfile": EC_PUBKEY, "keypath": None, "outcertfile": None, "valid": False},
+            {"backend": "x509", "keyfile": EC_PUBKEY, "keypath": None, "outcertfile": "cert.x509", "valid": False},
+            {"backend": "ecdsa", "keyfile": POLICY, "keypath": None, "outcertfile": None, "valid": False},
         ]
 
         cwd = os.getcwd()
@@ -95,6 +104,23 @@ class SignRuntimePolicy_Test(unittest.TestCase):
                             self.assertTrue(is_x509_cert(cert_data))
         finally:
             os.chdir(cwd)
+
+    def test__get_signer_encrypted_key(self):
+        # Enable verbose logging, so we see the debug messages.
+        Logger().enableVerbose()
+
+        # A password-protected key cannot be used, as no password can be provided.
+        privkey = ec.generate_private_key(ec.SECP256R1())
+        pem_data = privkey.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, BestAvailableEncryption(b"some-password"))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            keyfile = os.path.join(temp_dir, "encrypted-key.pem")
+            with open(keyfile, "wb") as f:
+                f.write(pem_data)
+
+            # pylint: disable=protected-access
+            signer = sign_runtime_policy._get_signer(backend="ecdsa", in_ec_keyfile_path=keyfile)
+            self.assertIsNone(signer)
 
     def test__sign_policy(self):
         # Enable verbose logging, so we see the debug messages.
@@ -162,6 +188,7 @@ class SignRuntimePolicy_Test(unittest.TestCase):
             },
             {"--runtime-policy": POLICY, "valid": True, "missing_params": False, "--keyfile": EC_PRIVKEY},
             {"--runtime-policy": POLICY, "valid": False, "missing_params": False, "--keyfile": RSA_PRIVKEY},
+            {"--runtime-policy": POLICY, "valid": False, "missing_params": False, "--keyfile": EC_PUBKEY},
         ]
 
         cwd = os.getcwd()
