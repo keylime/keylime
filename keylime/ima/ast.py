@@ -113,6 +113,12 @@ class Name(Type):
     legacy: bool = False
 
     def __init__(self, name: str, legacy: bool = False):
+        try:
+            name_bytes = name.encode("utf-8")
+        except UnicodeEncodeError as e:
+            raise ParserError(f"Name cannot be encoded as UTF-8. Got: {name!r}") from e
+        if legacy and len(name_bytes) > TCG_EVENT_NAME_LEN_MAX:
+            raise ParserError(f"Legacy name is longer than {TCG_EVENT_NAME_LEN_MAX} bytes. Got: {len(name_bytes)}")
         self.name = name
         self.legacy = legacy
 
@@ -164,6 +170,8 @@ class Digest:
                 self.hash = bytes.fromhex(tokens[1])
             except ValueError as e:
                 raise ParserError(f"Digest hash is not valid hex. Got: {tokens[1]}") from e
+            if not tokens[0].isascii():
+                raise ParserError(f"Digest algorithm is not ASCII. Got: {tokens[0]!r}")
             self.algorithm = tokens[0]
         else:
             raise ParserError(f"Cannot create Digest expected 1 or 2 tokens got: {len(tokens)} for {digest}")
