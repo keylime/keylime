@@ -117,7 +117,7 @@ class TestVerifierServerPrepareAgents(unittest.TestCase):
         mock_engine = MagicMock()
         mock_make_engine.return_value = mock_engine
 
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_push_monitor.get_maximum_attestation_interval.return_value = 10.0
 
         mock_agent = MagicMock()
@@ -156,7 +156,7 @@ class TestVerifierServerPrepareAgents(unittest.TestCase):
         mock_engine = MagicMock()
         mock_make_engine.return_value = mock_engine
 
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_push_monitor.get_maximum_attestation_interval.return_value = 10.0
 
         mock_agent = MagicMock()
@@ -195,7 +195,7 @@ class TestVerifierServerPrepareAgents(unittest.TestCase):
         mock_engine = MagicMock()
         mock_make_engine.return_value = mock_engine
 
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_push_monitor.get_maximum_attestation_interval.return_value = 10.0
 
         mock_agent = MagicMock()
