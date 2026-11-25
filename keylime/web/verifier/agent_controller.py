@@ -17,7 +17,7 @@ class AgentController(Controller):
         if self.major_version and self.major_version <= 2:
             self._new_v2_handler().get()  # type: ignore[no-untyped-call]
         else:
-            self.respond(404)
+            self.send_not_found()
             # TODO: Replace with v3 implementation
 
     # GET /vx[.y]/agents/:id/
@@ -25,7 +25,7 @@ class AgentController(Controller):
         if self.major_version and self.major_version <= 2:
             self._new_v2_handler().get()  # type: ignore[no-untyped-call]
         else:
-            self.respond(404)
+            self.send_not_found()
             # TODO: Replace with v3 implementation
 
     # POST /v3[.x]/agents/
@@ -34,12 +34,12 @@ class AgentController(Controller):
         if self.major_version and self.major_version <= 2:
             self._new_v2_handler().post()  # type: ignore[no-untyped-call]
         else:
-            self.respond(404)
+            self.send_not_found()
             # TODO: Replace with v3 implementation
 
     # PATCH /v3[.x]/agents/:id/
     def update(self, agent_id, **_params):  # type: ignore[no-untyped-def]  # pylint: disable=unused-argument  # Required by URL route pattern
-        self.respond(404)
+        self.send_not_found()
         # TODO: Replace with v3 implementation
 
     # DELETE /vx[.y]/agents/:id/
@@ -47,7 +47,7 @@ class AgentController(Controller):
         if self.major_version and self.major_version <= 2:
             self._new_v2_handler().delete()  # type: ignore[no-untyped-call]
         else:
-            self.respond(404)
+            self.send_not_found()
             # TODO: Replace with v3 implementation
 
     # PUT /v2[.x]/agents/:id/reactivate/
