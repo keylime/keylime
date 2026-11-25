@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
@@ -16,6 +17,29 @@ CODE_ROOT = f"{PACKAGE_ROOT}/keylime/"
 
 # Custom imports
 sys.path.insert(0, CODE_ROOT)
+
+# ca_util delegates certificate generation to ca_impl_openssl, whose mk_cacert()
+# needs a valid "ca" config section. Set it via the KEYLIME_CA_* environment
+# override so the module doesn't depend on a system-installed /etc/keylime/ca.conf.
+CA_TEST_ENV = {
+    "KEYLIME_CA_CERT_BITS": "2048",
+    "KEYLIME_CA_CERT_COUNTRY": "US",
+    "KEYLIME_CA_CERT_CA_LIFETIME": "3650",
+    "KEYLIME_CA_CERT_CRL_DIST": "http://localhost:38080/crl",
+}
+
+_env_patcher = None
+
+
+def setUpModule() -> None:
+    global _env_patcher
+    _env_patcher = mock.patch.dict(os.environ, CA_TEST_ENV)
+    _env_patcher.start()
+
+
+def tearDownModule() -> None:
+    assert _env_patcher is not None
+    _env_patcher.stop()
 
 
 class CA_Util_Test(unittest.TestCase):
