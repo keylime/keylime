@@ -113,6 +113,19 @@ if "KEYLIME_LOGGING_CONFIG" in os.environ:
 # Single instance
 _config: Optional[Dict[str, RawConfigParser]] = None
 
+# Documented default for [verifier] quote_interval, in seconds. Templates and
+# the user guide use this value. Every reader must use it as the fallback so a
+# missing option does not change attestation timing.
+DEFAULT_QUOTE_INTERVAL = 2.0
+
+# Documented default for [verifier] retry_interval, in seconds.
+DEFAULT_RETRY_INTERVAL = 2.0
+
+
+def get_quote_interval() -> float:
+    """Return the [verifier] quote_interval in seconds, with the documented default."""
+    return getfloat("verifier", "quote_interval", fallback=DEFAULT_QUOTE_INTERVAL)
+
 
 def _check_file_permissions(component: str, file_path: str) -> bool:
     """Check if a config file has correct permissions and is readable.

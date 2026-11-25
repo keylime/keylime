@@ -111,7 +111,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_check_push_agent_timeouts_healthy_agent(self, mock_time, mock_session_context, mock_config):
         """Test that healthy agents are not marked as failed."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0  # quote_interval = 2 seconds
+        mock_config.get_quote_interval.return_value = 2.0  # quote_interval = 2 seconds
         mock_session_context.return_value.__enter__.return_value = self.session
         mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
@@ -140,7 +140,7 @@ class TestPushAgentMonitor(unittest.TestCase):
         """Test that timed-out agents are marked as failed."""
         # Configure mocks
         quote_interval = 2.0
-        mock_config.getfloat.return_value = quote_interval
+        mock_config.get_quote_interval.return_value = quote_interval
         mock_session_context.return_value.__enter__.return_value = self.session
         mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
@@ -169,7 +169,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_check_push_agent_timeouts_never_received_attestation(self, mock_time, mock_session_context, mock_config):
         """Test that agents that never received an attestation are not marked as failed."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_session_context.return_value.__enter__.return_value = self.session
         mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
@@ -196,7 +196,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     @patch("keylime.push_agent_monitor.time.time")
     def test_check_push_agent_timeouts_sentinel_zero_not_timed_out(self, mock_time, mock_session_context, mock_config):
         """Test that agents with sentinel last_received_quote=0 are not marked as timed out."""
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_session_context.return_value.__enter__.return_value = self.session
         mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
@@ -221,7 +221,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_check_push_agent_timeouts_already_failed_agent(self, mock_time, mock_session_context, mock_config):
         """Test that already-failed agents are not updated again (to prevent log spam)."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_session_context.return_value.__enter__.return_value = self.session
         mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
@@ -249,7 +249,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_check_push_agent_timeouts_pull_mode_agent_ignored(self, mock_time, mock_session_context, mock_config):
         """Test that PULL mode agents are ignored by the timeout check."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_session_context.return_value.__enter__.return_value = self.session
         mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
@@ -279,7 +279,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_check_push_agent_timeouts_multiple_agents(self, mock_time, mock_session_context, mock_config):
         """Test timeout detection with multiple agents in different states."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0  # quote_interval = 2 seconds (threshold = 10.0 seconds)
+        mock_config.get_quote_interval.return_value = 2.0  # quote_interval = 2 seconds (threshold = 10.0 seconds)
         mock_session_context.return_value.__enter__.return_value = self.session
         mock_session_context.return_value.__exit__.return_value = None
         mock_time.return_value = self.current_time
@@ -407,7 +407,7 @@ class TestPushAgentMonitor(unittest.TestCase):
         """Test scheduling a timeout with default timeout calculation."""
         # Configure mocks
         quote_interval = 2.0
-        mock_config.getfloat.return_value = quote_interval
+        mock_config.get_quote_interval.return_value = quote_interval
 
         mock_ioloop = MagicMock()
         mock_ioloop_class.current.return_value = mock_ioloop
@@ -417,8 +417,8 @@ class TestPushAgentMonitor(unittest.TestCase):
         # Schedule timeout
         schedule_agent_timeout("test-agent-1")
 
-        # Verify config was queried
-        mock_config.getfloat.assert_called_once_with("verifier", "quote_interval", fallback=2.0)
+        # Verify config was queried via the centralized helper
+        mock_config.get_quote_interval.assert_called_once_with()
 
         # Verify timeout was scheduled with correct parameters
         expected_timeout = get_maximum_attestation_interval(quote_interval)
@@ -463,7 +463,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_schedule_timeout_cancels_existing(self, mock_config, mock_ioloop_class, mock_cancel):
         """Test that scheduling a timeout cancels any existing timeout for the same agent."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_ioloop = MagicMock()
         mock_ioloop_class.current.return_value = mock_ioloop
         mock_ioloop.call_later.return_value = Mock()
@@ -479,7 +479,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_schedule_timeout_multiple_agents(self, mock_config, mock_ioloop_class):
         """Test scheduling timeouts for multiple agents."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_ioloop = MagicMock()
         mock_ioloop_class.current.return_value = mock_ioloop
 
@@ -602,7 +602,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_mark_agent_failed_success(self, mock_session_context, mock_config):
         """Test successfully marking an agent as failed."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_session_context.return_value.__enter__.return_value = self.session
         mock_session_context.return_value.__exit__.return_value = None
 
@@ -630,7 +630,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_mark_agent_failed_already_failed(self, mock_session_context, mock_config):
         """Test marking an already-failed agent (should be a no-op)."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_session_context.return_value.__enter__.return_value = self.session
         mock_session_context.return_value.__exit__.return_value = None
 
@@ -676,7 +676,7 @@ class TestPushAgentMonitor(unittest.TestCase):
         """Test that marking an agent as failed logs appropriate information."""
         # Configure mocks
         quote_interval = 2.0
-        mock_config.getfloat.return_value = quote_interval
+        mock_config.get_quote_interval.return_value = quote_interval
         mock_session_context.return_value.__enter__.return_value = self.session
         mock_session_context.return_value.__exit__.return_value = None
 
@@ -726,7 +726,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_mark_agent_failed_removes_handle_before_db_update(self, mock_session_context, mock_config):
         """Test that the timeout handle is removed before attempting database update."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_session_context.return_value.__enter__.return_value = self.session
         mock_session_context.return_value.__exit__.return_value = None
 
@@ -748,7 +748,7 @@ class TestPushAgentMonitor(unittest.TestCase):
     def test_reschedule_updates_handle(self, mock_config, mock_ioloop_class):
         """Test that rescheduling a timeout updates the handle."""
         # Configure mocks
-        mock_config.getfloat.return_value = 2.0
+        mock_config.get_quote_interval.return_value = 2.0
         mock_ioloop = MagicMock()
         mock_ioloop_class.current.return_value = mock_ioloop
 

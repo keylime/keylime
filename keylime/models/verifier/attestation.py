@@ -361,7 +361,7 @@ class Attestation(PersistableModel):
     @property
     def next_attestation_expected_after(self):
         if self.evidence_received_at:
-            return self.evidence_received_at + timedelta(seconds=config.getint("verifier", "quote_interval"))
+            return self.evidence_received_at + timedelta(seconds=config.get_quote_interval())
         return self.capabilities_received_at
 
     @property

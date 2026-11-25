@@ -342,164 +342,199 @@ class TestAttestationControllerExponentialBackoff(unittest.TestCase):
 
         self.agent_id = "test-agent-123"
 
-    @patch("keylime.config.getint")
+    def _failed_pull_agent(self, consecutive_failures: int):
+        mock_agent = Mock(spec=VerifierAgent)
+        mock_agent.accept_attestations = True
+        mock_agent.consecutive_attestation_failures = consecutive_failures
+        mock_agent.operational_state = 7  # GET_QUOTE state
+        mock_agent.ip = "127.0.0.1"
+        mock_agent.port = 9002
+
+        mock_attestation = Mock()
+        mock_attestation.evaluation = "fail"
+        mock_attestation.stage = "verification_complete"
+        mock_agent.latest_attestation = mock_attestation
+        return mock_agent
+
+    @staticmethod
+    def _getfloat_side_effect(values):
+        def getfloat(component, option, fallback=None):
+            assert component == "verifier"
+            if option in values:
+                return values[option]
+            return fallback
+
+        return getfloat
+
+    @patch("keylime.config.get_quote_interval")
+    @patch("keylime.config.getfloat")
     @patch("keylime.common.retry.retry_time")
     @patch("keylime.web.verifier.attestation_controller.APIError")
     @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
     def test_create_returns_503_after_failed_attestation(
-        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getint
+        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getfloat, mock_get_quote_interval
     ):
         """Test that create() returns 503 Service Unavailable after a failed attestation.
 
         When the last attestation failed verification, the verifier should return
         503 with exponential backoff Retry-After header to prevent DoS.
         """
-        # Setup mock agent with failed latest attestation
-        mock_agent = Mock(spec=VerifierAgent)
-        mock_agent.accept_attestations = True
-        mock_agent.consecutive_attestation_failures = 2
-        # Configure as PULL mode agent (has operational_state, ip, and port)
-        mock_agent.operational_state = 7  # GET_QUOTE state
-        mock_agent.ip = "127.0.0.1"
-        mock_agent.port = 9002
+        mock_agent_class.get.return_value = self._failed_pull_agent(2)
+        mock_getfloat.side_effect = self._getfloat_side_effect({"retry_interval": 2.0})
+        mock_get_quote_interval.return_value = 100.0
+        mock_retry_time.return_value = 8.0
 
-        mock_attestation = Mock()
-        mock_attestation.evaluation = "fail"
-        mock_attestation.stage = "verification_complete"
-        mock_agent.latest_attestation = mock_attestation
-        mock_agent_class.get.return_value = mock_agent
-
-        # Mock config value for quote_interval (max cap)
-        mock_getint.return_value = 100  # High enough that it won't cap our retry value
-
-        # Mock retry calculation to return predictable value
-        mock_retry_time.return_value = 8.0  # 2nd retry with exponential backoff
-
-        # Mock APIError to prevent actual error sending
         mock_error = Mock()
         mock_error.set_detail = Mock(return_value=mock_error)
         mock_error.send_via = Mock(side_effect=StopAction)
         mock_api_error_class.return_value = mock_error
-
-        # Mock set_header to verify Retry-After is set
         self.controller.set_header = Mock()
 
-        # Call should trigger 503 error
         try:
             self.controller.create(self.agent_id, attestation={})
         except StopAction:
-            pass  # Expected when error is sent
+            pass
 
-        # Should set Retry-After header with exponential backoff value
         self.controller.set_header.assert_called_once_with("Retry-After", "8")
-
-        # Should create 503 error
         mock_api_error_class.assert_called_with("attestation_failed_retry", 503)
         mock_error.set_detail.assert_called_once()
 
-    @patch("keylime.config.getint")
+    @patch("keylime.config.get_quote_interval")
+    @patch("keylime.config.getfloat")
     @patch("keylime.common.retry.retry_time")
     @patch("keylime.web.verifier.attestation_controller.APIError")
     @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
     def test_create_uses_consecutive_failures_for_backoff(
-        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getint
+        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getfloat, mock_get_quote_interval
     ):
-        """Test that consecutive failure count is used for exponential backoff calculation.
-
-        The retry delay should increase based on the number of consecutive failures.
-        """
-        # Setup mock agent with multiple consecutive failures
-        mock_agent = Mock(spec=VerifierAgent)
-        mock_agent.accept_attestations = True
-        mock_agent.consecutive_attestation_failures = 5
-        # Configure as PULL mode agent (has operational_state, ip, and port)
-        mock_agent.operational_state = 7  # GET_QUOTE state
-        mock_agent.ip = "127.0.0.1"
-        mock_agent.port = 9002
-
-        mock_attestation = Mock()
-        mock_attestation.evaluation = "fail"
-        mock_attestation.stage = "verification_complete"
-        mock_agent.latest_attestation = mock_attestation
-        mock_agent_class.get.return_value = mock_agent
-
-        # Mock config value for quote_interval (max cap)
-        mock_getint.return_value = 100  # High enough that it won't cap our retry value
-
-        # Mock retry calculation
+        """Test that consecutive failure count is used for exponential backoff calculation."""
+        mock_agent_class.get.return_value = self._failed_pull_agent(5)
+        mock_getfloat.side_effect = self._getfloat_side_effect({"retry_interval": 2.0})
+        mock_get_quote_interval.return_value = 100.0
         mock_retry_time.return_value = 32.0
 
-        # Mock APIError to prevent actual error sending
         mock_error = Mock()
         mock_error.set_detail = Mock(return_value=mock_error)
         mock_error.send_via = Mock(side_effect=StopAction)
         mock_api_error_class.return_value = mock_error
-
-        # Mock set_header
         self.controller.set_header = Mock()
 
-        # Call should trigger 503 error
         try:
             self.controller.create(self.agent_id, attestation={})
         except StopAction:
             pass
 
-        # Verify retry_time was called with consecutive failures count
         mock_retry_time.assert_called_once()
         call_args = mock_retry_time.call_args[0]
-        self.assertEqual(call_args[2], 5)  # consecutive_failures parameter
+        self.assertEqual(call_args[2], 5)
 
-    @patch("keylime.config.getint")
+    @patch("keylime.config.get_quote_interval")
+    @patch("keylime.config.getfloat")
     @patch("keylime.common.retry.retry_time")
     @patch("keylime.web.verifier.attestation_controller.APIError")
     @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
     def test_create_caps_retry_after_at_quote_interval(
-        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getint
+        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getfloat, mock_get_quote_interval
     ):
-        """Test that Retry-After is capped at quote_interval to prevent excessive delays.
-
-        Even with many consecutive failures, the retry delay should not exceed
-        the configured quote_interval.
-        """
-        # Setup mock agent with many consecutive failures
-        mock_agent = Mock(spec=VerifierAgent)
-        mock_agent.accept_attestations = True
-        mock_agent.consecutive_attestation_failures = 10
-        # Configure as PULL mode agent (has operational_state, ip, and port)
-        mock_agent.operational_state = 7  # GET_QUOTE state
-        mock_agent.ip = "127.0.0.1"
-        mock_agent.port = 9002
-
-        mock_attestation = Mock()
-        mock_attestation.evaluation = "fail"
-        mock_attestation.stage = "verification_complete"
-        mock_agent.latest_attestation = mock_attestation
-        mock_agent_class.get.return_value = mock_agent
-
-        # Mock config value for quote_interval (max cap) - set to 60 to test capping
-        mock_getint.return_value = 60
-
-        # Mock retry calculation to return a very high value
+        """Test that Retry-After is capped at quote_interval to prevent excessive delays."""
+        mock_agent_class.get.return_value = self._failed_pull_agent(10)
+        mock_getfloat.side_effect = self._getfloat_side_effect({"retry_interval": 2.0})
+        mock_get_quote_interval.return_value = 60.0
         mock_retry_time.return_value = 1024.0
 
-        # Mock APIError to prevent actual error sending
         mock_error = Mock()
         mock_error.set_detail = Mock(return_value=mock_error)
         mock_error.send_via = Mock(side_effect=StopAction)
         mock_api_error_class.return_value = mock_error
-
-        # Mock set_header
         self.controller.set_header = Mock()
 
-        # Call should trigger 503 error
         try:
             self.controller.create(self.agent_id, attestation={})
         except StopAction:
             pass
 
-        # Should cap at max_interval (quote_interval config = 60)
-        # The actual retry_after should be min(1024, 60) = 60
         self.controller.set_header.assert_called_once_with("Retry-After", "60")
+
+    @patch("keylime.config.get_quote_interval")
+    @patch("keylime.config.getfloat")
+    @patch("keylime.common.retry.retry_time")
+    @patch("keylime.web.verifier.attestation_controller.APIError")
+    @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
+    def test_create_rounds_fractional_quote_interval_up(
+        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getfloat, mock_get_quote_interval
+    ):
+        """A quote_interval between 0 and 1 must not produce Retry-After: 0."""
+        mock_agent_class.get.return_value = self._failed_pull_agent(1)
+        mock_getfloat.side_effect = self._getfloat_side_effect({"retry_interval": 2.0})
+        mock_get_quote_interval.return_value = 0.4
+        mock_retry_time.return_value = 8.0
+
+        mock_error = Mock()
+        mock_error.set_detail = Mock(return_value=mock_error)
+        mock_error.send_via = Mock(side_effect=StopAction)
+        mock_api_error_class.return_value = mock_error
+        self.controller.set_header = Mock()
+
+        try:
+            self.controller.create(self.agent_id, attestation={})
+        except StopAction:
+            pass
+
+        self.controller.set_header.assert_called_once_with("Retry-After", "1")
+
+    @patch("keylime.config.get_quote_interval")
+    @patch("keylime.config.getfloat")
+    @patch("keylime.common.retry.retry_time")
+    @patch("keylime.web.verifier.attestation_controller.APIError")
+    @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
+    def test_create_retry_after_never_zero(
+        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getfloat, mock_get_quote_interval
+    ):
+        """A sub-second computed backoff must still yield Retry-After >= 1."""
+        mock_agent_class.get.return_value = self._failed_pull_agent(1)
+        mock_getfloat.side_effect = self._getfloat_side_effect({"retry_interval": 0.5})
+        mock_get_quote_interval.return_value = 2.0
+        mock_retry_time.return_value = 0.5
+
+        mock_error = Mock()
+        mock_error.set_detail = Mock(return_value=mock_error)
+        mock_error.send_via = Mock(side_effect=StopAction)
+        mock_api_error_class.return_value = mock_error
+        self.controller.set_header = Mock()
+
+        try:
+            self.controller.create(self.agent_id, attestation={})
+        except StopAction:
+            pass
+
+        self.controller.set_header.assert_called_once_with("Retry-After", "1")
+
+    @patch("keylime.config.get_quote_interval")
+    @patch("keylime.config.getfloat")
+    @patch("keylime.common.retry.retry_time")
+    @patch("keylime.web.verifier.attestation_controller.APIError")
+    @patch("keylime.web.verifier.attestation_controller.VerifierAgent")
+    def test_create_retry_after_floor_when_quote_interval_zero(
+        self, mock_agent_class, mock_api_error_class, mock_retry_time, mock_getfloat, mock_get_quote_interval
+    ):
+        """quote_interval of 0 must still produce Retry-After: 1 (max floor on the cap)."""
+        mock_agent_class.get.return_value = self._failed_pull_agent(1)
+        mock_getfloat.side_effect = self._getfloat_side_effect({"retry_interval": 2.0})
+        mock_get_quote_interval.return_value = 0.0
+        mock_retry_time.return_value = 8.0
+
+        mock_error = Mock()
+        mock_error.set_detail = Mock(return_value=mock_error)
+        mock_error.send_via = Mock(side_effect=StopAction)
+        mock_api_error_class.return_value = mock_error
+        self.controller.set_header = Mock()
+
+        try:
+            self.controller.create(self.agent_id, attestation={})
+        except StopAction:
+            pass
+
+        self.controller.set_header.assert_called_once_with("Retry-After", "1")
 
     @patch("keylime.web.verifier.attestation_controller.Attestation")
     @patch("keylime.web.verifier.attestation_controller.EngineDriver")

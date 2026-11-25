@@ -813,13 +813,13 @@ class TestAttestationModel(unittest.TestCase):
 
         self.assertEqual(result, 0)
 
-    @patch("keylime.models.verifier.attestation.config.getint")
+    @patch("keylime.models.verifier.attestation.config.get_quote_interval")
     @patch("keylime.models.base.types.timestamp.Timestamp.now")
-    def test_next_attestation_expected_after_with_evidence(self, mock_now, mock_config):
+    def test_next_attestation_expected_after_with_evidence(self, mock_now, mock_get_quote_interval):
         """Test next_attestation_expected_after uses evidence_received_at when available"""
         now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
         mock_now.return_value = now
-        mock_config.return_value = 600  # quote_interval
+        mock_get_quote_interval.return_value = 600  # quote_interval
 
         attestation = Attestation.empty()
         attestation.evidence_received_at = now
@@ -844,13 +844,13 @@ class TestAttestationModel(unittest.TestCase):
 
         self.assertEqual(result, now)
 
-    @patch("keylime.models.verifier.attestation.config.getint")
+    @patch("keylime.models.verifier.attestation.config.get_quote_interval")
     @patch("keylime.models.base.types.timestamp.Timestamp.now")
-    def test_seconds_to_next_attestation_positive(self, mock_now, mock_config):
+    def test_seconds_to_next_attestation_positive(self, mock_now, mock_get_quote_interval):
         """Test seconds_to_next_attestation returns positive value"""
         now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
         mock_now.return_value = now
-        mock_config.return_value = 600
+        mock_get_quote_interval.return_value = 600
 
         attestation = Attestation.empty()
         attestation.evidence_received_at = now
@@ -859,12 +859,12 @@ class TestAttestationModel(unittest.TestCase):
 
         self.assertEqual(result, 600)
 
-    @patch("keylime.models.verifier.attestation.config.getint")
+    @patch("keylime.models.verifier.attestation.config.get_quote_interval")
     @patch("keylime.models.base.types.timestamp.Timestamp.now")
-    def test_seconds_to_next_attestation_negative_returns_zero(self, mock_now, mock_config):
+    def test_seconds_to_next_attestation_negative_returns_zero(self, mock_now, mock_get_quote_interval):
         """Test seconds_to_next_attestation returns 0 when time has passed"""
         base_time = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
-        mock_config.return_value = 600
+        mock_get_quote_interval.return_value = 600
 
         attestation = Attestation.empty()
         attestation.evidence_received_at = base_time
@@ -875,6 +875,34 @@ class TestAttestationModel(unittest.TestCase):
         result = attestation.seconds_to_next_attestation
 
         self.assertEqual(result, 0)
+
+    @patch("keylime.models.verifier.attestation.config.getfloat")
+    @patch("keylime.models.base.types.timestamp.Timestamp.now")
+    def test_next_attestation_uses_default_quote_interval_fallback(self, mock_now, mock_getfloat):
+        """Missing quote_interval must fall back to DEFAULT_QUOTE_INTERVAL via get_quote_interval."""
+        from keylime import config as keylime_config
+
+        now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        mock_now.return_value = now
+
+        # Simulate a missing option: getfloat returns its fallback argument.
+        def getfloat_side_effect(component, option, fallback=None):
+            self.assertEqual(component, "verifier")
+            self.assertEqual(option, "quote_interval")
+            return fallback
+
+        mock_getfloat.side_effect = getfloat_side_effect
+
+        attestation = Attestation.empty()
+        attestation.evidence_received_at = now
+
+        result = attestation.next_attestation_expected_after
+
+        expected = now + timedelta(seconds=keylime_config.DEFAULT_QUOTE_INTERVAL)
+        self.assertEqual(result, expected)
+        mock_getfloat.assert_called_once_with(
+            "verifier", "quote_interval", fallback=keylime_config.DEFAULT_QUOTE_INTERVAL
+        )
 
     @patch("keylime.models.base.types.timestamp.Timestamp.now")
     def test_challenges_valid_returns_true(self, mock_now):
