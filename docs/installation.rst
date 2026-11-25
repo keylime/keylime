@@ -76,7 +76,7 @@ Push-model agent
 Keylime Bash installer
 ----------------------
 
-Keylime requires Python 3.6 or greater.
+Keylime requires Python 3.9 or greater.
 
 Installation can be performed via an automated shell script, :code:`installer.sh`. The
 following command line options are available::
@@ -103,7 +103,7 @@ For building those images locally see
 Manual
 ------
 
-Keylime requires Python 3.6 or greater.
+Keylime requires Python 3.9 or greater.
 
 Python-based prerequisites
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
