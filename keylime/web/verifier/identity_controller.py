@@ -42,5 +42,5 @@ class IdentityController(Controller):
         if self.major_version and self.major_version <= 2:
             self._new_v2_handler().get()  # type: ignore[no-untyped-call]
         else:
-            self.respond(404)
+            self.send_not_found()
             # TODO: Replace with v3 implementation
