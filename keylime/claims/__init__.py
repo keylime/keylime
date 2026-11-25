@@ -24,3 +24,7 @@ from keylime.claims.registry import (  # noqa: F401
     renderer_registry,
     translator_registry,
 )
+
+# Import the translator package so its registrations run at import time.
+# This is the explicit registration point for translators.
+from keylime.claims import translators  # noqa: F401,E402  (registration side effect)
