@@ -22,6 +22,10 @@ class TestConfig(unittest.TestCase):
         here makes the first test see the fixtures it sets, not a parser left
         behind by an earlier module.
         """
+        self._reset_config()
+
+    def _reset_config(self):
+        """Reload the config module to drop its cached parsers."""
         importlib.reload(config)
 
     def tearDown(self):
@@ -112,8 +116,8 @@ class TestConfig(unittest.TestCase):
 
     def test_setup_drops_cache_from_other_modules(self):
         """A parser cached before this class runs must not hide the fixture."""
-        config._config = {"verifier": RawConfigParser()}  # pylint: disable=protected-access
-        self.setUp()
+        config._config = {"verifier": RawConfigParser()}
+        self._reset_config()
         config.CONFIG_FILES = {"verifier": [os.path.join(CONFIG_DIR, "verifier.conf")]}
         config.CONFIG_ENV = {"verifier": ""}
         config.CONFIG_SNIPPETS_DIRS = {"verifier": ""}
