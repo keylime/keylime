@@ -379,7 +379,9 @@ def _parse_evidence_v2(evidence: Dict[str, Any]) -> Evidence:
     return Evidence(
         version=2,
         quote_message=bytes.fromhex(_bound_str(tpm_quote["message"], MAX_QUOTE_MESSAGE_SIZE, "tpm_quote.message")),
-        quote_signature=bytes.fromhex(_bound_str(tpm_quote["signature"], MAX_QUOTE_SIGNATURE_SIZE, "tpm_quote.signature")),
+        quote_signature=bytes.fromhex(
+            _bound_str(tpm_quote["signature"], MAX_QUOTE_SIGNATURE_SIZE, "tpm_quote.signature")
+        ),
         quote_pcrs=[bytes.fromhex(p) for p in _bound_pcr_list(tpm_quote["pcrs"])],
         hcl_report=_b64_decode_nopad(_bound_str(evidence["hcl_report"], MAX_HCL_REPORT_SIZE, "hcl_report")),
         vcek=_load_x509_certificate(_b64_decode_nopad(_bound_str(evidence["vcek"], MAX_VCEK_SIZE, "vcek"))),
@@ -399,7 +401,9 @@ def _parse_evidence_v1(evidence: Dict[str, Any]) -> Evidence:
     return Evidence(
         version=1,
         quote_message=bytes.fromhex(_bound_str(tpm_quote["message"], MAX_QUOTE_MESSAGE_SIZE, "tpm_quote.message")),
-        quote_signature=bytes.fromhex(_bound_str(tpm_quote["signature"], MAX_QUOTE_SIGNATURE_SIZE, "tpm_quote.signature")),
+        quote_signature=bytes.fromhex(
+            _bound_str(tpm_quote["signature"], MAX_QUOTE_SIGNATURE_SIZE, "tpm_quote.signature")
+        ),
         quote_pcrs=[bytes.fromhex(p) for p in _bound_pcr_list(tpm_quote["pcrs"])],
         hcl_report=_b64_decode_nopad(_bound_str(evidence["hcl_report"], MAX_HCL_REPORT_SIZE, "hcl_report")),
         vcek=_load_x509_certificate(_b64_decode_nopad(_bound_str(evidence["vcek"], MAX_VCEK_SIZE, "vcek"))),
@@ -420,7 +424,9 @@ def _parse_evidence_v0(evidence: Dict[str, Any]) -> Evidence:
     return Evidence(
         version=0,
         quote_message=_decode_byte_array(_bound_list(quote["message"], MAX_QUOTE_MESSAGE_SIZE, "quote.message")),
-        quote_signature=_decode_byte_array(_bound_list(quote["signature"], MAX_QUOTE_SIGNATURE_SIZE, "quote.signature")),
+        quote_signature=_decode_byte_array(
+            _bound_list(quote["signature"], MAX_QUOTE_SIGNATURE_SIZE, "quote.signature")
+        ),
         quote_pcrs=[_decode_byte_array(p) for p in _bound_pcr_list(quote["pcrs"])],
         hcl_report=_decode_byte_array(_bound_list(evidence["report"], MAX_HCL_REPORT_SIZE, "report")),
         vcek=_load_x509_certificate(_bound_str(vcek, MAX_VCEK_SIZE, "vcek").encode("utf-8"), pem=True),
@@ -1065,7 +1071,9 @@ def verify_tpm_pcrs(pcrs: List[bytes], attest: TpmAttest, failure: Failure) -> b
     if attest.pcr_select_bitmap != PCR_SELECT_ALL:
         failure.add_event(
             "pcr_digest",
-            {"message": f"unexpected pcrSelect bitmap {attest.pcr_select_bitmap.hex()}, expected {PCR_SELECT_ALL.hex()} (PCR 0-23)"},
+            {
+                "message": f"unexpected pcrSelect bitmap {attest.pcr_select_bitmap.hex()}, expected {PCR_SELECT_ALL.hex()} (PCR 0-23)"
+            },
             False,
         )
         return False
@@ -1135,9 +1143,7 @@ def verify_vcek_chain(
     evidence.
     """
     if not isinstance(chains, dict) or not all(
-        isinstance(chain, tuple)
-        and len(chain) == 2
-        and all(isinstance(cert, x509.Certificate) for cert in chain)
+        isinstance(chain, tuple) and len(chain) == 2 and all(isinstance(cert, x509.Certificate) for cert in chain)
         for chain in chains.values()
     ):
         failure.add_event(

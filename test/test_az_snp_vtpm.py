@@ -864,7 +864,9 @@ class PhaseFailureTest(unittest.TestCase):
         report[0x02C0 : 0x02C0 + 144] = bytes(144)
         with patch.dict(self.evidence, {"report": list(report)}):
             failure = self.fail_with("report_signature")
-        self.assertTrue(any("non-positive scalar" in event.context for event in failure.events), msg=str(failure.events))
+        self.assertTrue(
+            any("non-positive scalar" in event.context for event in failure.events), msg=str(failure.events)
+        )
 
     def test_vmpl(self):
         # VMPL sits inside the VCEK-signed region, so flipping it in the raw
@@ -1004,7 +1006,6 @@ class TrustAnchorsTest(unittest.TestCase):
                 chains = az_snp_vtpm.load_trust_anchors(tmp)
         self.assertEqual(set(chains), {"genoa"})
 
-
     @staticmethod
     def cert_with_unknown_spki(cert):
         """Rebuild a certificate with an unregistered SPKI algorithm OID.
@@ -1032,9 +1033,7 @@ class TrustAnchorsTest(unittest.TestCase):
         ask, ark = TRUST_ANCHORS["milan"]
         bad_ark = self.cert_with_unknown_spki(ark)
         evidence = load_json("evidence-v2-milan.json")
-        claims, failure = az_snp_vtpm.verify_attestation(
-            evidence, REPORT_DATA_V2, anchors={"milan": (ask, bad_ark)}
-        )
+        claims, failure = az_snp_vtpm.verify_attestation(evidence, REPORT_DATA_V2, anchors={"milan": (ask, bad_ark)})
         self.assertEqual(claims, {}, msg=str(failure.events))
         self.assertIn(f"{TEE_COMPONENT}.vcek_chain", event_ids(failure), msg=str(failure.events))
 
@@ -1103,9 +1102,7 @@ class ClaimsTest(unittest.TestCase):
         # the SNP identity/binding fields are pinned against the fixture
         # (AMD ABI layout: GUEST_SVN u32 @0x04, REPORT_ID 32B @0x140)
         self.assertEqual(claims["guest_svn"], "12")
-        self.assertEqual(
-            claims["report_id"], "ad29db593a7c2498cc5e987f9c9f51947fe01e18af0eb68d9b35076ae5437050"
-        )
+        self.assertEqual(claims["report_id"], "ad29db593a7c2498cc5e987f9c9f51947fe01e18af0eb68d9b35076ae5437050")
         self.assertEqual(
             claims["chip_id"],
             "2e0e62a0e6f39bc491381b091ff79cfe03ad0b42a6bbe764fd408923963d9097"
