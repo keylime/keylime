@@ -20,10 +20,11 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-The verifier is a long-running service that attests registered agents. It accesses
-the registrar database to obtain agent data, and optionally performs measured boot evaluation and durable
-attestation. The service does not accept command-line options; its behavior is configured via
-configuration files and environment variables, and it is managed by keylime tenant.
+The verifier is a long-running service that attests registered agents.
+Optionally, it performs measured boot evaluation and durable attestation.
+The service does not accept command-line options; its behavior is configured
+via configuration files and environment variables, and it is managed by
+keylime tenant.
 
 CONFIGURATION
 =============
@@ -38,7 +39,10 @@ Essentials:
   the verifier to one interface, ``0.0.0.0`` to listen on all IPv4 interfaces,
   or ``::`` to listen on all IPv6 interfaces (which also accepts IPv4 on
   dual-stack hosts).
-- **registrar_ip**, **registrar_port**: Registrar endpoint
+- **registrar_ip**, **registrar_port**: Former registrar endpoint.
+  **DEPRECATED**: Unused since version 6.4.0, as the verifier no longer
+  communicates with the registrar. These options will be removed with the next
+  major release.
 - **enable_agent_mtls**: Enable mTLS with agents and tenant
 - **tls_dir**: TLS material location
 

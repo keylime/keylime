@@ -40,10 +40,7 @@ def process_quote_response(
     agentAttestState: AgentAttestState,
     mb_policy_name: str = "accept-all",
 ) -> Failure:
-    """Validates the response from the Cloud agent.
-
-    This method invokes an Registrar Server call to register, and then check the quote.
-    """
+    """Validates the response from the Cloud agent."""
     failure = Failure(Component.QUOTE_VALIDATION)
     received_public_key = None
     quote = None
