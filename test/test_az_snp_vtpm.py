@@ -119,8 +119,8 @@ class VerifyAttestationTest(unittest.TestCase):
         claims, failure = self.verify(keylime_evidence(envelope), nonce)
         self.assertEqual(event_ids(failure), [], msg=str(failure.events))
         self.assertTrue(claims)
-        # report_data claim is the hex of the quote nonce
-        self.assertEqual(claims["report_data"], nonce.hex())
+        # the quote_nonce claim is the hex of the TPM quote nonce
+        self.assertEqual(claims["quote_nonce"], nonce.hex())
         self.assertEqual(len(claims["tpm"]), 24)
 
         # the envelope nonce is committed through the RCAR runtime-data
@@ -135,7 +135,7 @@ class VerifyAttestationTest(unittest.TestCase):
         evidence = load_json("evidence-v0-milan.json")
         claims, failure = self.verify(evidence, REPORT_DATA_CHALLENGE)
         self.assertEqual(event_ids(failure), [])
-        self.assertEqual(claims["report_data"], "6368616c6c656e6765")
+        self.assertEqual(claims["quote_nonce"], "6368616c6c656e6765")
         self.assertEqual(claims["tpm"]["pcr00"], EVIDENCE_V0_PCR0)
 
     def test_trustee_evidence_v1(self):
@@ -148,7 +148,7 @@ class VerifyAttestationTest(unittest.TestCase):
         evidence = load_json("evidence-v2-milan.json")
         claims, failure = self.verify(evidence, REPORT_DATA_V2)
         self.assertEqual(event_ids(failure), [])
-        self.assertEqual(claims["report_data"], REPORT_DATA_V2.hex())
+        self.assertEqual(claims["quote_nonce"], REPORT_DATA_V2.hex())
         self.assertEqual(claims["tpm"]["pcr00"], EVIDENCE_V2_PCR0)
 
     def test_trustee_evidence_genoa(self):
@@ -243,10 +243,16 @@ class VerifyAttestationTest(unittest.TestCase):
                 "reported_tcb_tee": "0",
                 "reported_tcb_snp": "24",
                 "reported_tcb_microcode": "219",
+                "guest_svn": "12",
                 "platform_tsme_enabled": "false",
                 "platform_smt_enabled": "true",
                 "measurement": "WwzmStHB9jddvaX3YLmFJsobz5G4GVCRr8KOewJCUdaP4y4FrzQEjWYHZ4zSMoP/",
-                "report_data": REPORT_DATA_V2.hex(),
+                "quote_nonce": REPORT_DATA_V2.hex(),
+                "report_data": "cf7cc0731c50f64876804b3943b2bfbd93dba69f5928e3df223e78ff34dd46ee" + "00" * 32,
+                "chip_id": "2e0e62a0e6f39bc491381b091ff79cfe03ad0b42a6bbe764fd408923963d9097"
+                "440365dbf8c3412c8da4969024d81b19c1d4f12197f460bf2b5283a25e32f684",
+                "report_id": "ad29db593a7c2498cc5e987f9c9f51947fe01e18af0eb68d9b35076ae5437050",
+                "host_data": "00" * 32,
                 "init_data": "00" * 32,
                 "tpm": {
                     "pcr00": "84275b2f4312cd4fc6cbe6b152ad3c3683e513d9f1e23c34fca160c8cca7a6a7",
@@ -1085,7 +1091,7 @@ class ClaimsTest(unittest.TestCase):
         seed_anchor_cache()
         claims, failure = az_snp_vtpm.verify_attestation(evidence, REPORT_DATA_V2)
         self.assertEqual(event_ids(failure), [])
-        self.assertEqual(claims["report_data"], REPORT_DATA_V2.hex())
+        self.assertEqual(claims["quote_nonce"], REPORT_DATA_V2.hex())
         self.assertEqual(claims["init_data"], evidence["tpm_quote"]["pcrs"][8])
         self.assertEqual(len(claims["tpm"]), 24)
         for index, pcr in enumerate(evidence["tpm_quote"]["pcrs"]):
@@ -1094,6 +1100,24 @@ class ClaimsTest(unittest.TestCase):
         for key in ("policy_abi_major", "reported_tcb_snp", "platform_smt_enabled"):
             self.assertIsInstance(claims[key], str)
         self.assertIn(claims["policy_debug_allowed"], ("true", "false"))
+        # the SNP identity/binding fields are pinned against the fixture
+        # (AMD ABI layout: GUEST_SVN u32 @0x04, REPORT_ID 32B @0x140)
+        self.assertEqual(claims["guest_svn"], "12")
+        self.assertEqual(
+            claims["report_id"], "ad29db593a7c2498cc5e987f9c9f51947fe01e18af0eb68d9b35076ae5437050"
+        )
+        self.assertEqual(
+            claims["chip_id"],
+            "2e0e62a0e6f39bc491381b091ff79cfe03ad0b42a6bbe764fd408923963d9097"
+            "440365dbf8c3412c8da4969024d81b19c1d4f12197f460bf2b5283a25e32f684",
+        )
+        self.assertEqual(claims["host_data"], "00" * 32)
+        # report_data is the SNP report_data (the HCL claims-hash
+        # commitment), NOT the quote nonce
+        self.assertEqual(
+            claims["report_data"],
+            "cf7cc0731c50f64876804b3943b2bfbd93dba69f5928e3df223e78ff34dd46ee" + "00" * 32,
+        )
 
     def test_short_pcr_list(self):
         # a direct caller with a PCR list too short for PCR[8] raises cleanly

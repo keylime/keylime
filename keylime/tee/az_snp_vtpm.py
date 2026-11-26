@@ -94,12 +94,14 @@ _RUNTIME_DATA_HASHES = {
 # AMD SEV-SNP attestation report layout (offsets within the SNP report)
 SNP_REPORT_SIGNATURE_OFFSET = 0x2A0
 SNP_REPORT_SIGNATURE_R_SIZE = 72  # 72-byte stride per scalar, 48-byte value
+SNP_REPORT_GUEST_SVN_OFFSET = 0x04
 SNP_REPORT_POLICY_OFFSET = 0x08
 SNP_REPORT_VMPL_OFFSET = 0x30
 SNP_REPORT_PLATFORM_INFO_OFFSET = 0x40
 SNP_REPORT_REPORT_DATA_OFFSET = 0x50
 SNP_REPORT_MEASUREMENT_OFFSET = 0x90
 SNP_REPORT_HOST_DATA_OFFSET = 0xC0
+SNP_REPORT_REPORT_ID_OFFSET = 0x140
 SNP_REPORT_REPORTED_TCB_OFFSET = 0x180
 SNP_REPORT_CHIP_ID_OFFSET = 0x1A0
 SNP_REPORT_CPUID_FAMILY_OFFSET = 0x188
@@ -267,6 +269,8 @@ class SnpReport:
     host_data: bytes
     reported_tcb: bytes
     chip_id: bytes
+    guest_svn: int
+    report_id: bytes
     # processor generation derived from the report's CPUID (v3+) and the
     # generation-aware decoded TCB components (see _decode_tcb)
     generation: str
@@ -700,6 +704,8 @@ def parse_snp_report(snp_report: bytes) -> SnpReport:
         host_data=snp_report[SNP_REPORT_HOST_DATA_OFFSET : SNP_REPORT_HOST_DATA_OFFSET + 32],
         reported_tcb=snp_report[SNP_REPORT_REPORTED_TCB_OFFSET : SNP_REPORT_REPORTED_TCB_OFFSET + 8],
         chip_id=snp_report[SNP_REPORT_CHIP_ID_OFFSET : SNP_REPORT_CHIP_ID_OFFSET + 64],
+        guest_svn=struct.unpack_from("<I", snp_report, SNP_REPORT_GUEST_SVN_OFFSET)[0],
+        report_id=snp_report[SNP_REPORT_REPORT_ID_OFFSET : SNP_REPORT_REPORT_ID_OFFSET + 32],
         generation=generation,
         tcb_fmc=tcb_fmc,
         tcb_bootloader=tcb_bootloader,
@@ -1417,13 +1423,21 @@ def parse_claims(snp: SnpReport, attest: TpmAttest, pcrs: List[bytes]) -> Dict[s
         "reported_tcb_tee": str(snp.tcb_tee),
         "reported_tcb_snp": str(snp.tcb_snp),
         "reported_tcb_microcode": str(snp.tcb_microcode),
+        "guest_svn": str(snp.guest_svn),
         # platform info (bit 0 = SMT, bit 1 = TSME)
         "platform_tsme_enabled": str(bool(snp.platform_info & (1 << 1))).lower(),
         "platform_smt_enabled": str(bool(snp.platform_info & (1 << 0))).lower(),
         # measurements
         "measurement": base64.b64encode(snp.measurement).decode("ascii"),
-        # extend_claim overwrites report_data with the hex of the quote nonce
-        "report_data": attest.extra_data.hex(),
+        # the quote nonce (TPM quote extraData); NOT the SNP report_data,
+        # which is emitted separately below -- same name, different value
+        "quote_nonce": attest.extra_data.hex(),
+        # the SNP report_data (the HCL claims-hash commitment for Azure)
+        "report_data": snp.report_data.hex(),
+        # identity/binding fields (evidence_binding in the v3 claims schema)
+        "chip_id": snp.chip_id.hex(),
+        "report_id": snp.report_id.hex(),
+        "host_data": snp.host_data.hex(),
         # extend_claim overwrites init_data with the hex of PCR[8]
         "init_data": pcrs[INIT_DATA_PCR].hex(),
         "tpm": {f"pcr{index:02d}": pcr.hex() for index, pcr in enumerate(pcrs)},
