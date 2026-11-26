@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from importlib import util
 from test.utils import assertDigestsEqual, keylimePolicyAssertLogs
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from keylime.common import algorithms
 from keylime.ima import ima
@@ -339,6 +341,30 @@ checksum-4 \
 
         digests = create_runtime_policy.path_digests(homedir, dirs_to_exclude=["/non-existing"])
         self.assertEqual(len(digests), 1, msg=f"digests = {digests}, dirs_to_exclude=['/non-existing']")
+
+    def test_path_digests_mount_exclusions_follow_selected_root(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            image = pathlib.Path(tmpdir).resolve() / "image"
+            root = image / "rootfs"
+            for directory in ("srv", "usr", "boot", "skipped"):
+                path = root / directory
+                path.mkdir(parents=True)
+                (path / "file").touch()
+
+            mounted_file = root / "usr" / "mounted.conf"
+            mounted_file.touch()
+            mounts = [
+                SimpleNamespace(mountpoint="/", fstype="ext4"),
+                SimpleNamespace(mountpoint="/srv", fstype="tmpfs"),
+                SimpleNamespace(mountpoint=str(image), fstype="btrfs"),
+                SimpleNamespace(mountpoint=str(root / "usr"), fstype="btrfs"),
+                SimpleNamespace(mountpoint=str(root / "boot"), fstype="ext4"),
+                SimpleNamespace(mountpoint=str(mounted_file), fstype="tmpfs"),
+            ]
+            with patch.object(create_runtime_policy.psutil, "disk_partitions", return_value=mounts):
+                digests = create_runtime_policy.path_digests(str(root), dirs_to_exclude=["/skipped"], match_rootfs=True)
+
+        self.assertEqual(set(digests), {"/srv/file", "/usr/file"})
 
     def test_process_exclude_list(self):
         test_cases = [
