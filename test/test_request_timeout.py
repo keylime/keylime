@@ -3,9 +3,11 @@ import os
 import ssl
 import sys
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
+from requests.exceptions import ConnectionError, ReadTimeout
 from tornado.httpclient import HTTPError
+from urllib3.exceptions import ReadTimeoutError
 
 from keylime.config import DEFAULT_TIMEOUT
 
@@ -264,6 +266,97 @@ class TestTenantTimeout(unittest.TestCase):
         # Verify timeout was set correctly from config
         self.assertEqual(tenant.request_timeout, 42.0)
         mock_getfloat.assert_any_call("tenant", "request_timeout", fallback=DEFAULT_TIMEOUT)
+
+    @staticmethod
+    def _registrar_tenant():
+        from keylime.tenant import Tenant  # pylint: disable=import-outside-toplevel
+
+        tenant = Tenant.__new__(Tenant)
+        tenant.verifier_id = None
+        tenant.registrar_ip = "127.0.0.1"
+        tenant.registrar_port = "8891"
+        tenant.registrar_api_version = "2.6"
+        tenant.agent_uuid = "00000000-0000-4000-8000-000000000001"
+        tenant.tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        tenant.request_timeout = 2.5
+        return tenant
+
+    @patch("keylime.registrar_client.RequestsClient")
+    def test_registrar_requests_use_tenant_timeout(self, mock_requests_client):
+        """Use the tenant timeout for agent lookups, listing, and deletion."""
+        from keylime.tenant import UserError  # pylint: disable=import-outside-toplevel
+
+        tenant = self._registrar_tenant()
+
+        client = mock_requests_client.return_value
+        client.get.return_value.status_code = 200
+        client.get.return_value.json.return_value = {"results": {"uuids": [tenant.agent_uuid]}}
+        tenant.do_reglist()
+
+        client.get.return_value.json.return_value = {
+            "results": {"aik_tpm": "aik", "ek_tpm": "ek", "ip": None, "port": None, "regcount": 1}
+        }
+        tenant.do_regstatus()
+
+        client.get.return_value.status_code = 404
+        client.get.return_value.json.return_value = {"code": 404, "status": "Not found", "results": {}}
+        with self.assertRaisesRegex(UserError, "does not exist"):
+            tenant.do_regstatus()
+        with self.assertRaisesRegex(UserError, "data not found in the Registrar"):
+            tenant.init_add({})
+
+        client.delete.return_value.status_code = 200
+        client.delete.return_value.json.return_value = {"code": 200, "status": "Success", "results": {}}
+        tenant.do_regdelete()
+
+        path = f"/v2.6/agents/{tenant.agent_uuid}"
+        self.assertEqual(
+            client.get.call_args_list,
+            [
+                call("/v2.6/agents/", timeout=2.5),
+                call(path, timeout=2.5),
+                call(path, timeout=2.5),
+                call(path, timeout=2.5),
+            ],
+        )
+        client.delete.assert_called_once_with(path, timeout=2.5)
+
+    @patch("keylime.registrar_client.RequestsClient")
+    def test_registrar_lookup_reports_timeout(self, mock_requests_client):
+        """Report timeouts separately from HTTP 404 during registrar lookups."""
+        from keylime.tenant import UserError  # pylint: disable=import-outside-toplevel
+
+        tenant = self._registrar_tenant()
+        mock_requests_client.return_value.get.side_effect = ReadTimeout("Registrar response took too long")
+
+        with self.assertRaisesRegex(UserError, r"Registrar .* timed out while looking up agent"):
+            tenant.do_regstatus()
+        with self.assertRaisesRegex(UserError, r"Registrar .* timed out while looking up agent"):
+            tenant.init_add({})
+
+    @patch("keylime.registrar_client.RequestsClient")
+    def test_registrar_lookup_reports_wrapped_timeout(self, mock_requests_client):
+        """Report the timeout when Requests wraps a stalled body read as a connection error."""
+        from keylime.tenant import UserError  # pylint: disable=import-outside-toplevel
+
+        tenant = self._registrar_tenant()
+        mock_requests_client.return_value.get.side_effect = ConnectionError(
+            ReadTimeoutError(None, None, "Read timed out")
+        )
+
+        with self.assertRaisesRegex(UserError, r"Could not look up agent .* Read timed out"):
+            tenant.do_regstatus()
+        with self.assertRaisesRegex(UserError, r"Could not look up agent .* Read timed out"):
+            tenant.init_add({})
+
+    @patch("keylime.registrar_client.RequestsClient")
+    def test_registrar_lookup_without_timeout_returns_none_on_request_error(self, mock_requests_client):
+        from keylime import registrar_client  # pylint: disable=import-outside-toplevel
+
+        mock_requests_client.return_value.get.side_effect = ReadTimeout("Registrar response took too long")
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
+        self.assertIsNone(registrar_client.getData("127.0.0.1", "8891", "agent", context))
 
     def test_tenant_timeout_attribute_set(self):
         """Test that Tenant timeout attribute is accessible after initialization."""

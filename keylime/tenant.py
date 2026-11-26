@@ -305,6 +305,25 @@ class Tenant:
             raise UserError("Failed to negotiate API version with registrar")
         return self.registrar_api_version
 
+    def _get_registrar_data(self) -> Optional[registrar_client.RegistrarData]:
+        if not self.registrar_ip or not self.registrar_port:
+            raise UserError("registrar_ip and registrar_port have both to be set in the configuration")
+
+        try:
+            return registrar_client.getData(
+                self.registrar_ip,
+                self.registrar_port,
+                self.agent_uuid,
+                self.tls_context,
+                api_version=self.ensure_registrar_version(),
+                timeout=self.request_timeout,
+            )
+        except requests.exceptions.RequestException as exc:
+            address = f"{bracketize_ipv6(self.registrar_ip)}:{self.registrar_port}"
+            if isinstance(exc, requests.exceptions.Timeout):
+                raise UserError(f"Registrar ({address}) timed out while looking up agent {self.agent_uuid}.") from exc
+            raise UserError(f"Could not look up agent {self.agent_uuid} on Registrar ({address}). {exc}") from exc
+
     def init_add(self, args: Dict[str, Any]) -> None:
         """Set up required values. Command line options can overwrite these config values
 
@@ -317,15 +336,7 @@ class Tenant:
         if "agent_port" in args and args["agent_port"] is not None:
             self.agent_port = args["agent_port"]
 
-        if not self.registrar_ip or not self.registrar_port:
-            raise UserError("registrar_ip and registrar_port have both to be set in the configuration")
-        self.registrar_data = registrar_client.getData(
-            self.registrar_ip,
-            self.registrar_port,
-            self.agent_uuid,
-            self.tls_context,
-            api_version=self.ensure_registrar_version(),
-        )
+        self.registrar_data = self._get_registrar_data()
 
         if self.registrar_data is None:
             raise UserError(f"Agent ${self.agent_uuid} data not found in the Registrar.")
@@ -1122,18 +1133,8 @@ class Tenant:
             )
 
     def do_regstatus(self) -> Dict[str, Any]:
-        if not self.registrar_ip or not self.registrar_port:
-            raise UserError("registrar_ip and registrar_port have both to be set in the configuration")
-
+        agent_info = self._get_registrar_data()
         self.set_full_id_str()
-
-        agent_info = registrar_client.getData(
-            self.registrar_ip,
-            self.registrar_port,
-            self.agent_uuid,
-            self.tls_context,
-            api_version=self.ensure_registrar_version(),
-        )
 
         if not agent_info:
             logger.info(
@@ -1188,6 +1189,7 @@ class Tenant:
             self.registrar_port,
             tls_context=self.tls_context,
             api_version=self.ensure_registrar_version(),
+            timeout=self.request_timeout,
         )
 
         # Marked for deletion (need to modify the code on CI tests)
@@ -1211,6 +1213,7 @@ class Tenant:
             self.agent_uuid,
             tls_context=self.tls_context,
             api_version=self.ensure_registrar_version(),
+            timeout=self.request_timeout,
         )
 
         return response

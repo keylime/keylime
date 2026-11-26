@@ -3,6 +3,8 @@ import ssl
 import sys
 from typing import Any, Dict, Optional
 
+from requests.exceptions import RequestException
+
 from keylime import api_version as keylime_api_version
 from keylime import keylime_logging
 from keylime.ip_util import bracketize_ipv6
@@ -81,6 +83,7 @@ def getData(
     agent_id: str,
     tls_context: Optional[ssl.SSLContext],
     api_version: Optional[str] = None,
+    timeout: Optional[float] = None,
 ) -> Optional[RegistrarData]:
     """
     Get the agent data from the registrar.
@@ -88,7 +91,9 @@ def getData(
     This is called by the tenant code
 
     :param api_version: Optional API version to use. If None, uses current version.
+    :param timeout: Optional connect and read timeout in seconds.
     :returns: JSON structure containing the agent data
+    :raises RequestException: If Requests reports a failure and a timeout was supplied.
     """
     # make absolutely sure you don't ask for data that contains AIK keys unauthenticated
     if not tls_context:
@@ -98,7 +103,7 @@ def getData(
     response = None
     try:
         client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
-        response = client.get(f"/v{version}/agents/{agent_id}")
+        response = client.get(f"/v{version}/agents/{agent_id}", timeout=timeout)
         response_body = response.json()
 
         if response.status_code == 404:
@@ -136,6 +141,11 @@ def getData(
 
         return res
 
+    except RequestException as e:
+        if timeout is not None:
+            raise
+        logger.exception(e)
+
     except AttributeError as e:
         if response and response.status_code == 503:
             logger.critical("Error: the registrar is not available at %s:%s", registrar_ip, registrar_port)
@@ -154,6 +164,7 @@ def doRegistrarDelete(
     agent_id: str,
     tls_context: Optional[ssl.SSLContext],
     api_version: Optional[str] = None,
+    timeout: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Delete the given agent from the registrar.
@@ -161,11 +172,12 @@ def doRegistrarDelete(
     This is called by the tenant code
 
     :param api_version: Optional API version to use. If None, uses current version.
+    :param timeout: Optional connect and read timeout in seconds.
     :returns: The request response body
     """
     version = api_version or API_VERSION
     client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
-    response = client.delete(f"/v{version}/agents/{agent_id}")
+    response = client.delete(f"/v{version}/agents/{agent_id}", timeout=timeout)
     response_body: Dict[str, Any] = response.json()
 
     if response.status_code == 200:
@@ -182,6 +194,7 @@ def doRegistrarList(
     registrar_port: str,
     tls_context: Optional[ssl.SSLContext],
     api_version: Optional[str] = None,
+    timeout: Optional[float] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Get the list of registered agents from the registrar.
@@ -189,11 +202,12 @@ def doRegistrarList(
     This is called by the tenant code
 
     :param api_version: Optional API version to use. If None, uses current version.
+    :param timeout: Optional connect and read timeout in seconds.
     :returns: The request response body
     """
     version = api_version or API_VERSION
     client = RequestsClient(f"{bracketize_ipv6(registrar_ip)}:{registrar_port}", True, tls_context=tls_context)
-    response = client.get(f"/v{version}/agents/")
+    response = client.get(f"/v{version}/agents/", timeout=timeout)
     response_body: Dict[str, Any] = response.json()
 
     if response.status_code != 200:
