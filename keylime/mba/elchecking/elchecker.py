@@ -51,31 +51,27 @@ def bootlog_evaluate(
     mb_measurement_data: tests.Data,
     pcrs_inquote: Set[int],
     agent_id: str,
+    quote_hash_alg: Optional[str] = None,
+    log_bound_pcrs: Optional[Set[int]] = None,
 ) -> Failure:
     """
     Evaluating a measured boot event log against a policy
     :param policy_data: policy definition (aka "refstate") (as a string).
     :param measurement_data: parsed measured boot event log as produced by `parse_bootlog`
-    :param pcrsInQuote: a set of PCRs provided by the quote.
+    :param pcrs_inquote: the PCRs the quote validated.
     :param agent_id: the UUID of the keylime agent sending this data.
+    :param quote_hash_alg: the PCR bank authenticated by the quote.
+    :param log_bound_pcrs: PCRs whose event-log value matched the quote. A PCR the
+        policy relies on must be in this set. A policy that requires this set
+        (ordered-replay) rejects when it is omitted; other policies fall back to
+        pcrs_inquote.
     :returns: list of all failures encountered while evaluating the boot log against the policy.
     """
     failure = Failure(Component.MEASURED_BOOT)
 
-    # no evaluation if the refstate is an empty string
-    if not mb_refstate_str:
-        return failure
-
-    mb_refstate_data = json.loads(mb_refstate_str)
-
-    # no evaluation if the refstate does not load as JSON
-    if not mb_refstate_data:
-        return failure
-
-    # load policy name
+    # Load policy name and policy first, so a malformed reference state is reported
+    # as an invalid operator policy rather than raising.
     mb_policy_name = config.get("verifier", "measured_boot_policy_name", fallback="accept-all")
-
-    # pylint: enable=import-outside-toplevel
     mb_policy = policies.get_policy(mb_policy_name)
 
     # fallback if we cannot find policy
@@ -85,20 +81,96 @@ def bootlog_evaluate(
         mb_policy_name = "reject-all"
         mb_policy = policies.RejectAll()
 
-    # figure out whether the quote contains all quotes to evaluate the policy
-    # if there are any PCRs in the policy that are not in the quote, we canot evaluate.
-    mb_pcrs_policy = mb_policy.get_relevant_pcrs()
-    missing_pcrs = list(mb_pcrs_policy.difference(pcrs_inquote))
+    # Parse the reference state; it may be missing or empty. Malformed JSON is an
+    # operator error, not an agent fault, so report it as invalid_mb_policy.
+    try:
+        mb_refstate_data = json.loads(mb_refstate_str) if mb_refstate_str else None
+    except (TypeError, ValueError) as exn:
+        logger.error("Measured boot reference state for policy %s is not valid JSON: %s", mb_policy_name, str(exn))
+        failure.add_event(
+            "invalid_mb_policy",
+            {"context": "Invalid measured boot reference state", "policy": mb_policy_name, "reason": str(exn)},
+            True,
+        )
+        return failure
+
+    # An empty or missing reference state means different things per policy. A
+    # policy that does not accept it (reject-all, ordered-replay) still runs so the
+    # missing content fails closed. A policy that accepts it but must run on every
+    # quote or needs the log-bound PCR set also runs, so its hooks take effect.
+    # Any other accepting policy (accept-all) passes without further checks.
+    if not mb_refstate_data:
+        if not mb_policy.accepts_empty_refstate():
+            mb_refstate_data = {}
+        elif mb_policy.requires_evaluation_every_quote() or mb_policy.requires_log_bound_pcrs():
+            mb_refstate_data = {}
+        else:
+            return failure
+
     reason = None
-    if len(missing_pcrs) > 0:
-        logger.error("PCRs specified for policy %s not in quote: %s", mb_policy_name, str(missing_pcrs))
-        failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": missing_pcrs}, True)
-    # evaluate the policy
+
+    # The quote must bind every PCR the policy relies on. A genuinely missing PCR
+    # is reported as missing_pcrs (kept stable for monitoring rules); a reference
+    # state the policy cannot read is reported as invalid_mb_policy.
+    try:
+        relevant_pcrs = mb_policy.get_relevant_pcrs_from_refstate(mb_refstate_data)
+    except Exception as exn:
+        logger.error("Measured boot policy %s cannot read its reference state: %s", mb_policy_name, str(exn))
+        failure.add_event(
+            "invalid_mb_policy",
+            {"context": "Invalid measured boot reference state", "policy": mb_policy_name, "reason": str(exn)},
+            True,
+        )
+        return failure
+
+    # A PCR the policy relies on is bound only if its event-log value matched the
+    # quote. A policy that needs that set (ordered-replay) rejects when a caller
+    # omits it; other policies keep the broad quote-PCR set for compatibility.
+    if log_bound_pcrs is not None:
+        bound_pcrs = log_bound_pcrs
+    elif mb_policy.requires_log_bound_pcrs():
+        logger.error("Measured boot policy %s requires the quote-bound PCR set, which was not provided", mb_policy_name)
+        failure.add_event(
+            "quote_context",
+            {
+                "context": "Quote context does not satisfy measured boot policy",
+                "policy": mb_policy_name,
+                "reason": "the set of quote-bound PCRs was not provided",
+            },
+            True,
+        )
+        return failure
     else:
-        try:
-            reason = mb_policy.evaluate(mb_refstate_data, mb_measurement_data)
-        except Exception as exn:
-            reason = f"policy evaluation failed: {str(exn)}"
+        bound_pcrs = pcrs_inquote
+    missing_pcrs = sorted(relevant_pcrs.difference(bound_pcrs))
+    if missing_pcrs:
+        logger.error("PCRs specified for policy %s not bound to the log by the quote: %s", mb_policy_name, missing_pcrs)
+        failure.add_event("missing_pcrs", {"context": "PCRs are missing in quote", "data": missing_pcrs}, True)
+        return failure
+
+    # The quoted PCR bank must satisfy the policy (bank binding).
+    try:
+        bank_reason = mb_policy.validate_quote_bank(mb_refstate_data, quote_hash_alg)
+    except Exception as exn:
+        bank_reason = f"quote bank validation failed: {str(exn)}"
+
+    if bank_reason:
+        logger.error("Quote context does not satisfy measured boot policy %s: %s", mb_policy_name, bank_reason)
+        failure.add_event(
+            "quote_context",
+            {
+                "context": "Quote context does not satisfy measured boot policy",
+                "policy": mb_policy_name,
+                "reason": bank_reason,
+            },
+            True,
+        )
+        return failure
+
+    try:
+        reason = mb_policy.evaluate(mb_refstate_data, mb_measurement_data)
+    except Exception as exn:
+        reason = f"policy evaluation failed: {str(exn)}"
 
     if reason:
         logger.error(

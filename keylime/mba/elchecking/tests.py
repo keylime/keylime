@@ -1,5 +1,6 @@
 import abc
 import re
+import string
 import typing
 
 from keylime.common.algorithms import Hash
@@ -281,6 +282,112 @@ class TupleTest(Test):
             reason = test.why_not(globs, subject_elt)
             if reason:
                 return f"[{idx}] " + reason
+        return ""
+
+
+# Banks the verifier can authenticate end to end through the quote path.
+# This is the set of algorithms mapped in keylime.tpm.tpm_main.Tpm.HASH_ALG_TO_TPM
+# and keylime.tpm.tpm2_objects.HASH_FUNCS. A reference that names any other bank
+# cannot be tied to an AK-signed quote, so the policy rejects it rather than
+# silently trusting a parser-only value.
+QUOTE_AUTHENTICATED_BANKS = frozenset({"sha1", "sha256", "sha384", "sha512"})
+
+
+class OrderedReplay(Test):
+    """Compare reference PCR values against the parser's quote-bound PCR map.
+
+    The reference values are the expected outcome of replaying the boot log in
+    order. The verifier does that replay once, in the trusted parser
+    (``tpm2_eventlog``), and binds the resulting per-PCR values to the AK-signed
+    quote before this test runs. Rather than maintain a second replay here (which
+    would have to track ``StartupLocality``, ``EV_EFI_HCRTM_EVENT`` and the TPM
+    1.2 versus 2.0 rules to stay correct), the test reads that parser-calculated
+    map from the measurement data and checks each reference PCR against it.
+
+    The guarantee is per-PCR final value equality against the quote. Reordering
+    events that extend one PCR is caught only when it changes that PCR's final
+    value, under the collision resistance of the bank's hash. A reorder that
+    leaves the endpoint unchanged, such as swapping two events with equal digests
+    or moving an entry that does not extend the PCR, is not authenticated.
+    Interleaving of events across different PCRs cannot be told apart from
+    independent PCR endpoints either, and no PCR-based policy authenticates it.
+    """
+
+    expected: typing.Dict[str, typing.Dict[int, bytes]]
+
+    def __init__(self, reference_pcrs: Data):
+        super().__init__()
+        if not isinstance(reference_pcrs, dict) or not reference_pcrs:
+            raise Exception("reference PCRs must be a non-empty dict")
+
+        self.expected = {}
+        for alg_name, bank in reference_pcrs.items():
+            if not isinstance(alg_name, str) or not Hash.is_recognized(alg_name):
+                raise Exception(f"unrecognized reference PCR hash algorithm {alg_name!r}")
+            if alg_name not in QUOTE_AUTHENTICATED_BANKS:
+                raise Exception(
+                    f"reference PCR bank {alg_name!r} cannot be authenticated by a quote; "
+                    f"use one of {sorted(QUOTE_AUTHENTICATED_BANKS)}"
+                )
+            if not isinstance(bank, dict) or not bank:
+                raise Exception(f"reference PCR bank {alg_name!r} must be a non-empty dict")
+
+            hash_alg = Hash(alg_name)
+            digest_size = hash_alg.get_size() // 8
+            expected_bank: typing.Dict[int, bytes] = {}
+            for pcr_name, value in bank.items():
+                try:
+                    pcr = int(pcr_name)
+                except (TypeError, ValueError) as exc:
+                    raise Exception(f"reference PCR index {pcr_name!r} is not an integer") from exc
+                if isinstance(pcr_name, bool) or pcr < 0 or pcr > 23:
+                    raise Exception(f"reference PCR index {pcr_name!r} is outside 0..23")
+                if pcr in expected_bank:
+                    raise Exception(f"reference PCR bank {alg_name!r} repeats PCR {pcr}")
+
+                if isinstance(value, int) and not isinstance(value, bool):
+                    try:
+                        expected = value.to_bytes(digest_size, byteorder="big")
+                    except (OverflowError, ValueError) as exc:
+                        raise Exception(f"reference value for {alg_name} PCR {pcr} has the wrong size") from exc
+                elif isinstance(value, str):
+                    value_hex = value[2:] if value.startswith("0x") else value
+                    if len(value_hex) != digest_size * 2 or any(c not in string.hexdigits for c in value_hex):
+                        raise Exception(f"reference value for {alg_name} PCR {pcr} is not a full-size hex digest")
+                    expected = bytes.fromhex(value_hex)
+                else:
+                    raise Exception(f"reference value for {alg_name} PCR {pcr} must be an integer or hex string")
+                expected_bank[pcr] = expected
+            self.expected[alg_name] = expected_bank
+
+    def why_not(self, globs: Globals, subject: Data) -> str:
+        if not isinstance(subject, dict):
+            return "is not a measurement-data dict"
+        log_pcrs = subject.get("pcrs")
+        if not isinstance(log_pcrs, dict):
+            return "measurement data has no parser-calculated pcrs map"
+
+        for alg_name, expected_bank in self.expected.items():
+            hash_alg = Hash(alg_name)
+            digest_size = hash_alg.get_size() // 8
+            log_bank = log_pcrs.get(alg_name)
+            if not isinstance(log_bank, dict):
+                return f"measurement data has no {alg_name} pcrs from the parser"
+            for pcr, expected in expected_bank.items():
+                if str(pcr) in log_bank:
+                    got_value = log_bank[str(pcr)]
+                elif pcr in log_bank:
+                    got_value = log_bank[pcr]
+                else:
+                    return f"{alg_name} PCR {pcr} is absent from the parser-calculated pcrs"
+                if not isinstance(got_value, int) or isinstance(got_value, bool):
+                    return f"{alg_name} PCR {pcr} parser value is not an integer"
+                try:
+                    got = got_value.to_bytes(digest_size, byteorder="big")
+                except (OverflowError, ValueError):
+                    return f"{alg_name} PCR {pcr} parser value does not fit the bank width"
+                if got != expected:
+                    return f"{alg_name} PCR {pcr} is {got.hex()}, expected {expected.hex()}"
         return ""
 
 

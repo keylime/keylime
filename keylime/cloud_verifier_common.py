@@ -500,6 +500,9 @@ def process_verify_attestation(
             skip_clock_check=True,
             skip_pcr_check=False,
             skip_data_pcr_check=True,
+            # One-shot verification has no attestation count. Treat it as the first
+            # quote so a 'once' measured-boot policy is evaluated here too.
+            count=0,
         )
         failure.merge(quote_failure)
     except Exception as e:
