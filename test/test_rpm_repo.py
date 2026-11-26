@@ -238,6 +238,29 @@ class RpmRepo_Test(unittest.TestCase):
             self.assertFalse(ok, msg=f"repo = {unsupported_comp}")
             self.assertEqual(digests, {})
 
+    def test_analyze_remote_repo_missing_package(self):
+        source_repo = pathlib.Path(self.dirpath) / "repo" / "unsigned"
+        stale_repo = source_repo.with_name("stale")
+        shutil.copytree(source_repo, stale_repo)
+        (stale_repo / "DUMMY-foo-42.0.0-el42.noarch.rpm").unlink()
+
+        with http_server("localhost", 0, str(stale_repo)) as httpd:
+            url = f"http://localhost:{httpd.server_port}"
+            self.assertEqual(rpm_repo.analyze_remote_repo(url, jobs=1), ({}, {}, False))
+
+    def test_analyze_empty_remote_repo_requires_primary_metadata(self):
+        repo = pathlib.Path(self.dirpath, "repo", "empty")
+        repo.mkdir()
+        subprocess.run(["createrepo_c", "--general-compress-type=gz", str(repo)], check=True, capture_output=True)
+
+        with http_server("localhost", 0, str(repo)) as httpd:
+            url = f"http://localhost:{httpd.server_port}"
+            self.assertEqual(rpm_repo.analyze_remote_repo(url, jobs=1), ({}, {}, True))
+
+            primary_metadata = next((repo / "repodata").glob("*primary.xml.gz"))
+            primary_metadata.unlink()
+            self.assertEqual(rpm_repo.analyze_remote_repo(url, jobs=1), ({}, {}, False))
+
     def test_analyze_rpm_pkg_url(self):
         test_cases = [
             {

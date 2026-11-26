@@ -13,6 +13,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from contextlib import contextmanager
+from functools import partial
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import rpm  # pylint: disable=import-error
@@ -59,8 +60,10 @@ def analyze_rpm_pkg(pkg: PathLike_str) -> Tuple[Dict[str, List[str]], Dict[str, 
     return _parse_rpm_header(hdr)
 
 
-def analyze_rpm_pkg_url(url: str) -> Tuple[Dict[str, List[str]], Dict[str, List[bytes]]]:
-    """Analyze a single RPM package from its URL."""
+def analyze_rpm_pkg_url(
+    url: str, *, raise_on_error: bool = False
+) -> Tuple[Dict[str, List[str]], Dict[str, List[bytes]]]:
+    """Analyze an RPM package from its URL, optionally treating an HTTP error as fatal."""
     # To fetch the header we can emulate rpmReadPackageFile, but this
     # seems to require multiple reads.  This simplified algorithm read
     # first a sizeable blob, adjusted from the median of some repo
@@ -88,6 +91,9 @@ def analyze_rpm_pkg_url(url: str) -> Tuple[Dict[str, List[str]], Dict[str, List[
                         blob += resp.read()
                 except urllib.error.HTTPError as exc:
                     errmsg = f"Error trying to open {url}: {exc}"
+                    if raise_on_error:
+                        # Pass a picklable exception back to the repository scan.
+                        raise RuntimeError(errmsg) from exc
                     logger.warning(errmsg)
                     return {}, {}
 
@@ -213,21 +219,19 @@ def get_filelists_ext_from_repomd(repo: str, repomd_xml: str) -> Optional[str]:
 
 
 def get_rpm_urls_from_repomd(repo: str, repomd_xml: str) -> List[str]:
-    """Parse the RPM URLs from a given repomd.xml file."""
+    """Read package URLs from the primary metadata referenced by repomd.xml."""
     root = _parse_xml_file(repomd_xml).getroot()
     location = root.find(
         "./{http://linux.duke.edu/metadata/repo}data[@type='primary']/{http://linux.duke.edu/metadata/repo}location"
     )
     if location is None:
-        logger.error("Error. Primary location tag not found")
-        return []
+        raise RuntimeError("Primary location tag not found in repository metadata")
 
     logger.debug("Generating package list from repo ...")
     primary_xml_url = urllib.parse.urljoin(repo, location.attrib["href"])
     with get_from_url(primary_xml_url) as primary_xml:
         if not primary_xml:
-            logger.error("Error. Primary XML file cannot be downloaded")
-            return []
+            raise RuntimeError("Primary repository metadata could not be downloaded")
 
         root_primary = _parse_xml_file(primary_xml)
         locations = root_primary.findall(
@@ -329,8 +333,9 @@ def _analyze_remote_repo(
     jobs = jobs if jobs else max_workers
 
     # Analyze all the RPMs in parallel
+    analyze_package = partial(analyze_rpm_pkg_url, raise_on_error=True)
     with multiprocessing.Pool(jobs) as pool:
-        for rpm_digests, rpm_imasigs in pool.map(analyze_rpm_pkg_url, rpms):
+        for rpm_digests, rpm_imasigs in pool.map(analyze_package, rpms):
             digests = merge_maplists(digests, rpm_digests)
             imasigs = merge_maplists(imasigs, rpm_imasigs)
 
