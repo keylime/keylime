@@ -1,4 +1,5 @@
 import unittest
+from configparser import RawConfigParser
 from unittest.mock import patch
 
 from keylime.web.base.server import Server
@@ -57,3 +58,15 @@ class TestWorkerCount(unittest.TestCase):
     def test_explicit_worker_count_no_limit(self):
         server = self._make_server(worker_count=20, max_workers=0)
         self.assertEqual(server.worker_count, 20)
+
+    def test_empty_max_workers_falls_back_with_warning(self):
+        server = self._make_server()
+        server._use_config("verifier")  # pylint: disable=protected-access
+        cfg = RawConfigParser()
+        cfg.add_section("verifier")
+        cfg.set("verifier", "max_workers", "")
+        with patch("keylime.web.base.server.config.get_config", return_value=cfg):
+            with self.assertLogs("keylime.web", level="WARNING") as log_ctx:
+                server._set_max_workers(from_config="max_workers")  # pylint: disable=protected-access
+        self.assertEqual(server.max_workers, 0)
+        self.assertTrue(any("Cannot parse" in msg for msg in log_ctx.output))
