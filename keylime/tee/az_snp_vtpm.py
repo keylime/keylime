@@ -120,7 +120,10 @@ SNP_SIGNING_KEY_VLEK = 1
 SNP_CPUID_FAMILY_MILAN_GENOA = 0x19
 SNP_CPUID_FAMILY_TURIN = 0x1A
 SNP_MILAN_MODELS = range(0x00, 0x10)
-SNP_GENOA_MODELS = tuple(range(0x10, 0x20)) + tuple(range(0xA0, 0xB0))
+# Slightly narrower than the kernel's Zen4 range (arch/x86/kernel/
+# cpu/amd.c also includes 0xAF): matches trustee so both verifiers
+# agree; 0xAF can be added back once reconciled upstream.
+SNP_GENOA_MODELS = tuple(range(0x10, 0x20)) + tuple(range(0xA0, 0xAF))
 SNP_TURIN_MODELS = range(0x00, 0x12)
 
 # TPMS_ATTEST constants
@@ -134,11 +137,16 @@ PCR_SIZE = 32
 # so a shifted or partial selection would mislabel them
 PCR_SELECT_ALL = b"\xff\xff\xff"
 
-# Size bounds for the untrusted evidence, checked in phase 0 before any
-# expensive decoding or parsing (real HCL reports are ~2.6 KB)
+# Evidence size bounds, enforced by the version parsers on the encoded
+# strings before decoding; the structural checks further in are a
+# second layer. Real HCL reports are ~2.6 KB.
 MAX_HCL_REPORT_SIZE = 1 << 20  # 1 MiB
 MAX_CLAIMS_SIZE = 256 * 1024  # 256 KiB
 MAX_QUOTE_MESSAGE_SIZE = 64 * 1024  # TPM2 quotes are a few hundred bytes
+MAX_QUOTE_SIGNATURE_SIZE = 4096  # RSA-4096 signatures are 512 bytes
+MAX_PCR_COUNT = 24  # the full SHA-256 bank, PCRs 0-23
+MAX_VCEK_SIZE = 64 * 1024  # DER certificates are a few KB
+MAX_CC_EVENTLOG_SIZE = 1 << 20  # 1 MiB
 
 # vTPM measured register semantics (TCG PC Client Firmware Profile)
 INIT_DATA_PCR = 8
@@ -293,6 +301,42 @@ def _decode_byte_array(value: Any) -> bytes:
     return bytes(value)
 
 
+def _bound_str(value: Any, max_bytes: int, name: str) -> str:
+    """Reject an encoded string over its bound before decoding.
+
+    The bound is on the decoded size; hex is 2x and base64 ~1.33x, so
+    checking 2x is a safe over-approximation.
+    """
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string, got {type(value).__name__}")
+    if len(value) > 2 * max_bytes:
+        raise ValueError(f"{name} of {len(value)} characters exceeds the maximum of {max_bytes} bytes")
+    return value
+
+
+def _bound_list(value: Any, max_items: int, name: str) -> List[Any]:
+    """Reject an oversized byte-array (list) field before decoding."""
+    if not isinstance(value, list) or len(value) > max_items:
+        raise ValueError(f"{name} must be a list of at most {max_items} entries")
+    return value
+
+
+def _bound_pcr_list(pcrs: Any) -> List[Any]:
+    """Reject an oversized PCR list before decoding (hex strings or byte arrays)."""
+    if not isinstance(pcrs, list) or len(pcrs) > MAX_PCR_COUNT:
+        raise ValueError(f"pcrs must be a list of at most {MAX_PCR_COUNT} entries")
+    for pcr in pcrs:
+        if isinstance(pcr, list):
+            ok = len(pcr) <= PCR_SIZE
+        elif isinstance(pcr, str):
+            ok = len(pcr) <= 2 * PCR_SIZE
+        else:
+            ok = False
+        if not ok:
+            raise ValueError(f"pcrs entries must be at most {PCR_SIZE} bytes (hex string or byte array)")
+    return pcrs
+
+
 def _load_x509_certificate(data: bytes, pem: bool = False) -> x509.Certificate:
     """Load one X.509 certificate, converting any failure into ValueError.
 
@@ -330,12 +374,16 @@ def _parse_evidence_v2(evidence: Dict[str, Any]) -> Evidence:
     tpm_quote = evidence["tpm_quote"]
     return Evidence(
         version=2,
-        quote_message=bytes.fromhex(tpm_quote["message"]),
-        quote_signature=bytes.fromhex(tpm_quote["signature"]),
-        quote_pcrs=[bytes.fromhex(p) for p in tpm_quote["pcrs"]],
-        hcl_report=_b64_decode_nopad(evidence["hcl_report"]),
-        vcek=_load_x509_certificate(_b64_decode_nopad(evidence["vcek"])),
-        cc_eventlog=(base64.b64decode(evidence["cc_eventlog"], validate=True) if evidence.get("cc_eventlog") else None),
+        quote_message=bytes.fromhex(_bound_str(tpm_quote["message"], MAX_QUOTE_MESSAGE_SIZE, "tpm_quote.message")),
+        quote_signature=bytes.fromhex(_bound_str(tpm_quote["signature"], MAX_QUOTE_SIGNATURE_SIZE, "tpm_quote.signature")),
+        quote_pcrs=[bytes.fromhex(p) for p in _bound_pcr_list(tpm_quote["pcrs"])],
+        hcl_report=_b64_decode_nopad(_bound_str(evidence["hcl_report"], MAX_HCL_REPORT_SIZE, "hcl_report")),
+        vcek=_load_x509_certificate(_b64_decode_nopad(_bound_str(evidence["vcek"], MAX_VCEK_SIZE, "vcek"))),
+        cc_eventlog=(
+            base64.b64decode(_bound_str(evidence["cc_eventlog"], MAX_CC_EVENTLOG_SIZE, "cc_eventlog"), validate=True)
+            if evidence.get("cc_eventlog")
+            else None
+        ),
     )
 
 
@@ -346,11 +394,11 @@ def _parse_evidence_v1(evidence: Dict[str, Any]) -> Evidence:
     tpm_quote = evidence["tpm_quote"]
     return Evidence(
         version=1,
-        quote_message=bytes.fromhex(tpm_quote["message"]),
-        quote_signature=bytes.fromhex(tpm_quote["signature"]),
-        quote_pcrs=[bytes.fromhex(p) for p in tpm_quote["pcrs"]],
-        hcl_report=_b64_decode_nopad(evidence["hcl_report"]),
-        vcek=_load_x509_certificate(_b64_decode_nopad(evidence["vcek"])),
+        quote_message=bytes.fromhex(_bound_str(tpm_quote["message"], MAX_QUOTE_MESSAGE_SIZE, "tpm_quote.message")),
+        quote_signature=bytes.fromhex(_bound_str(tpm_quote["signature"], MAX_QUOTE_SIGNATURE_SIZE, "tpm_quote.signature")),
+        quote_pcrs=[bytes.fromhex(p) for p in _bound_pcr_list(tpm_quote["pcrs"])],
+        hcl_report=_b64_decode_nopad(_bound_str(evidence["hcl_report"], MAX_HCL_REPORT_SIZE, "hcl_report")),
+        vcek=_load_x509_certificate(_b64_decode_nopad(_bound_str(evidence["vcek"], MAX_VCEK_SIZE, "vcek"))),
     )
 
 
@@ -367,11 +415,11 @@ def _parse_evidence_v0(evidence: Dict[str, Any]) -> Evidence:
         raise ValueError("v0 vcek must be a PEM string")
     return Evidence(
         version=0,
-        quote_message=_decode_byte_array(quote["message"]),
-        quote_signature=_decode_byte_array(quote["signature"]),
-        quote_pcrs=[_decode_byte_array(p) for p in quote["pcrs"]],
-        hcl_report=_decode_byte_array(evidence["report"]),
-        vcek=_load_x509_certificate(vcek.encode("utf-8"), pem=True),
+        quote_message=_decode_byte_array(_bound_list(quote["message"], MAX_QUOTE_MESSAGE_SIZE, "quote.message")),
+        quote_signature=_decode_byte_array(_bound_list(quote["signature"], MAX_QUOTE_SIGNATURE_SIZE, "quote.signature")),
+        quote_pcrs=[_decode_byte_array(p) for p in _bound_pcr_list(quote["pcrs"])],
+        hcl_report=_decode_byte_array(_bound_list(evidence["report"], MAX_HCL_REPORT_SIZE, "report")),
+        vcek=_load_x509_certificate(_bound_str(vcek, MAX_VCEK_SIZE, "vcek").encode("utf-8"), pem=True),
     )
 
 
@@ -536,9 +584,9 @@ def parse_hcl_report(hcl_report: bytes) -> HclReport:
     if not isinstance(claims, dict):
         raise ValueError("runtime claims must be a JSON object")
 
-    # never log the claims contents: they carry guest-identifying data
-    # (vmUniqueId, the AK/EK JWKs, the user-data nonce)
-    logger.debug("HCL runtime claims: %d bytes, keys: %s", len(runtime.claims_bytes), sorted(claims.keys()))
+    # never log claims contents: values carry guest-identifying data and
+    # key names are guest-chosen, unverified bytes until phase 4
+    logger.debug("HCL runtime claims: %d bytes, %d keys", len(runtime.claims_bytes), len(claims))
 
     ak_pub = _extract_ak_pub(claims)
     user_data = _extract_user_data(claims)
@@ -721,11 +769,11 @@ def parse_tpm_attest(message: bytes) -> TpmAttest:
         raise ValueError(f"TPMS_ATTEST has {len(message) - offset} trailing bytes")
 
     logger.debug(
-        "TPMS_ATTEST: extraData=%s pcrSelect=%d bank(s) bitmap=%s pcrDigest=%s",
-        extra_data.hex(),
+        "TPMS_ATTEST: extraData %d bytes, pcrSelect %d bank(s), bitmap %d bytes, pcrDigest %d bytes",
+        len(extra_data),
         count,
-        bitmap.hex(),
-        pcr_digest.hex(),
+        len(bitmap),
+        len(pcr_digest),
     )
     return TpmAttest(
         extra_data=extra_data,
@@ -806,9 +854,18 @@ def _validate_anchor_pair(ask: x509.Certificate, ark: x509.Certificate) -> bool:
     and the ASK itself is not self-signed."""
     if ask.subject == ask.issuer:
         return False
-    if not _rsa_pss_verify(ark.public_key(), ark.signature, ark.tbs_certificate_bytes):
+    if not _rsa_pss_verify(ark, ark.signature, ark.tbs_certificate_bytes):
         return False
-    return _rsa_pss_verify(ark.public_key(), ask.signature, ask.tbs_certificate_bytes)
+    if not _rsa_pss_verify(ark, ask.signature, ask.tbs_certificate_bytes):
+        return False
+    # the ASK's own SPKI is not parsed above (only the ARK signs here):
+    # check it too, so an undecodable key is rejected at load time
+    # instead of being cached and failing during attestation
+    try:
+        ask.public_key()
+    except (UnsupportedAlgorithm, ValueError):
+        return False
+    return True
 
 
 def load_trust_anchors(path: str) -> Dict[str, Tuple[x509.Certificate, x509.Certificate]]:
@@ -928,8 +985,18 @@ def _pss_padding() -> padding.PSS:
     return padding.PSS(mgf=padding.MGF1(hashes.SHA384()), salt_length=padding.PSS.DIGEST_LENGTH)
 
 
-def _rsa_pss_verify(public_key: Any, signature: bytes, data: bytes) -> bool:
-    """RSA-PSS(SHA-384) verification; the AMD chain certificates are RSA."""
+def _rsa_pss_verify(cert: x509.Certificate, signature: bytes, data: bytes) -> bool:
+    """RSA-PSS(SHA-384) verification; the AMD chain certificates are RSA.
+
+    SPKI parsing is lazy in ``cryptography``: ``cert.public_key()`` is
+    what raises UnsupportedAlgorithm on an unknown key OID, so it must
+    stay inside the guard (cf. verify_snp_report_signature).
+    """
+    try:
+        public_key = cert.public_key()
+    except (UnsupportedAlgorithm, ValueError):
+        logger.debug("Certificate public key cannot be decoded, cannot verify with RSA-PSS")
+        return False
     if not isinstance(public_key, rsa.RSAPublicKey):
         logger.debug("Certificate public key is not RSA, cannot verify with RSA-PSS")
         return False
@@ -1094,21 +1161,21 @@ def verify_vcek_chain(
 
     ask, ark = chain
     # ARK self-signed, ASK signed by the ARK, VCEK signed by the ASK
-    if not _rsa_pss_verify(ark.public_key(), ark.signature, ark.tbs_certificate_bytes):
+    if not _rsa_pss_verify(ark, ark.signature, ark.tbs_certificate_bytes):
         failure.add_event(
             "vcek_chain",
             {"message": f"ARK of the {generation} chain is not self-signed"},
             False,
         )
         return False
-    if not _rsa_pss_verify(ark.public_key(), ask.signature, ask.tbs_certificate_bytes):
+    if not _rsa_pss_verify(ark, ask.signature, ask.tbs_certificate_bytes):
         failure.add_event(
             "vcek_chain",
             {"message": f"ASK of the {generation} chain is not signed by the ARK"},
             False,
         )
         return False
-    if not _rsa_pss_verify(ask.public_key(), vcek.signature, vcek.tbs_certificate_bytes):
+    if not _rsa_pss_verify(ask, vcek.signature, vcek.tbs_certificate_bytes):
         failure.add_event(
             "vcek_chain",
             {"message": "Failed to validate VCEK against the AMD certificate chains"},
@@ -1391,28 +1458,30 @@ def _parse_evidence_parts(
         return None
 
     if parsed.cc_eventlog:
-        # cc_eventlog replay is not implemented yet (see the TODO at the
-        # top of this module): the eventlog is accepted but NOT verified.
-        # Surface that degraded verdict per attestation as a recoverable
-        # event, so callers can see it without the evidence failing.
+        # cc_eventlog replay is not implemented yet (see module TODO).
+        # Fail closed like trustee: in keylime every event, recoverable
+        # or not, makes Failure truthy, so a recoverable event here
+        # would return claims alongside a Failure every consumer
+        # rejects. This branch goes away once TCG2 replay lands.
         failure.add_event(
             "cc_eventlog_unverified",
-            {"message": "cc_eventlog present in the az-snp-vtpm evidence but its replay is not implemented; ignoring it"},
-            True,
+            {"message": "cc_eventlog present in the az-snp-vtpm evidence but its replay is not implemented"},
+            False,
         )
+        return None
 
     # Phase 0 - parse the HCL container and the nested SNP report
     try:
         hcl = parse_hcl_report(parsed.hcl_report)
         snp = parse_snp_report(hcl.snp_report)
     except ValueError as e:
-        failure.add_event("hcl_report", {"message": str(e)}, False)
+        failure.add_event("invalid_input", {"message": str(e)}, False)
         return None
 
     try:
         attest = parse_tpm_attest(parsed.quote_message)
     except ValueError as e:
-        failure.add_event("tpm_message_parse", {"message": str(e)}, False)
+        failure.add_event("invalid_input", {"message": str(e)}, False)
         return None
 
     return (parsed, hcl, snp, attest)

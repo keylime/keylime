@@ -14,9 +14,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from cryptography import x509
-from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 from pyasn1.codec.der import decoder as der_decoder
 from pyasn1.codec.der import encoder as der_encoder
 from pyasn1_modules import rfc2459
@@ -279,20 +277,21 @@ class VerifyAttestationTest(unittest.TestCase):
             },
         )
 
-    def test_cc_eventlog_ignored(self):
-        """v2 evidence carrying a cc_eventlog must not fail (replay not implemented).
+    def test_cc_eventlog_fails_closed(self):
+        """v2 evidence carrying a cc_eventlog fails until replay is implemented.
 
-        The degraded verdict is surfaced per attestation as a recoverable
-        cc_eventlog_unverified event, so callers can see that the eventlog
-        was accepted without being verified.
+        Asserts what the wiring will observe: every keylime Failure event,
+        recoverable or not, makes the Failure object truthy, so the
+        evidence is rejected by any consumer gating on truthiness
+        (matching trustee, which replays the log and rejects on mismatch).
         """
         evidence = load_json("evidence-v2-milan.json")
         evidence["cc_eventlog"] = "aGVsbG8="  # non-empty, would need replay
         claims, failure = self.verify(evidence, REPORT_DATA_V2)
-        self.assertTrue(claims, msg=str(failure.events))
+        self.assertEqual(claims, {}, msg=str(failure.events))
         self.assertIn(f"{TEE_COMPONENT}.cc_eventlog_unverified", event_ids(failure), msg=str(failure.events))
-        # recoverable: the unimplemented replay must not fail the evidence
-        self.assertTrue(failure.recoverable, msg=str(failure.events))
+        self.assertTrue(bool(failure), msg=str(failure.events))
+        self.assertFalse(failure.recoverable, msg=str(failure.events))
 
     def test_missing_trust_anchors(self):
         # an anchor store with no usable chain -> fail closed
@@ -794,14 +793,14 @@ class PhaseFailureTest(unittest.TestCase):
         report = bytearray(self.evidence["report"])
         struct.pack_into("<I", report, az_snp_vtpm.SNP_REPORT_OFFSET + az_snp_vtpm.SNP_REPORT_KEY_INFO_OFFSET, 1 << 2)
         with patch.dict(self.evidence, {"report": list(report)}):
-            self.fail_with("hcl_report")
+            self.fail_with("invalid_input")
 
     def test_key_info_masked_report_rejected(self):
         # MASK_CHIP_KEY (key_info bit 1): an unsigned report is rejected
         report = bytearray(self.evidence["report"])
         struct.pack_into("<I", report, az_snp_vtpm.SNP_REPORT_OFFSET + az_snp_vtpm.SNP_REPORT_KEY_INFO_OFFSET, 0b10)
         with patch.dict(self.evidence, {"report": list(report)}):
-            self.fail_with("hcl_report")
+            self.fail_with("invalid_input")
 
     def test_report_missing_cpuid(self):
         """A report without CPUID (version 2) fails closed with an honest error.
@@ -818,7 +817,7 @@ class PhaseFailureTest(unittest.TestCase):
         evidence["report"] = list(report)
         claims, failure = az_snp_vtpm.verify_attestation(evidence, self.nonce)
         self.assertEqual(claims, {}, msg=str(failure.events))
-        self.assertIn(f"{TEE_COMPONENT}.hcl_report", event_ids(failure), msg=str(failure.events))
+        self.assertIn(f"{TEE_COMPONENT}.invalid_input", event_ids(failure), msg=str(failure.events))
         self.assertTrue(any("CPUID" in event.context for event in failure.events), msg=str(failure.events))
 
     def test_vcek_missing_oid_extension(self):
@@ -1000,43 +999,56 @@ class TrustAnchorsTest(unittest.TestCase):
         self.assertEqual(set(chains), {"genoa"})
 
 
-    def test_rsa_pss_verify_unsupported_algorithm(self):
+    @staticmethod
+    def cert_with_unknown_spki(cert):
+        """Rebuild a certificate with an unregistered SPKI algorithm OID.
+
+        SPKI parsing in cryptography is lazy, so the certificate loads
+        fine and only cert.public_key() raises UnsupportedAlgorithm.
+        """
+        der = cert.public_bytes(serialization.Encoding.DER)
+        parsed, _ = der_decoder.decode(der, asn1Spec=rfc2459.Certificate())
+        parsed["tbsCertificate"]["subjectPublicKeyInfo"]["algorithm"]["algorithm"] = "1.2.840.113549.1.1.99"
+        return x509.load_der_x509_certificate(der_encoder.encode(parsed))
+
+    def test_rsa_pss_verify_unknown_spki(self):
         # an anchor whose key algorithm the installed cryptography does
         # not know parses fine (loading is lazy) and only fails at
-        # public_key().verify(): it must count as an invalid signature,
+        # cert.public_key(): it must count as an invalid signature,
         # not escape the fail-closed error handling
-        class UnusableKey(rsa.RSAPublicKey):
-            """An RSA key whose verification is unsupported by the backend."""
+        bad_ark = self.cert_with_unknown_spki(TRUST_ANCHORS["milan"][1])
+        self.assertFalse(az_snp_vtpm._rsa_pss_verify(bad_ark, b"sig", b"data"))  # pylint: disable=protected-access
 
-            def verify(self, signature, data, *args, **kwargs):  # pylint: disable=unused-argument
-                raise UnsupportedAlgorithm("unknown algorithm")
+    def test_anchors_unknown_spki_no_raise(self):
+        # end-to-end via anchors=: an ARK with an unknown SPKI must
+        # surface as a vcek_chain failure event, not escape
+        # verify_attestation as UnsupportedAlgorithm
+        ask, ark = TRUST_ANCHORS["milan"]
+        bad_ark = self.cert_with_unknown_spki(ark)
+        evidence = load_json("evidence-v2-milan.json")
+        claims, failure = az_snp_vtpm.verify_attestation(
+            evidence, REPORT_DATA_V2, anchors={"milan": (ask, bad_ark)}
+        )
+        self.assertEqual(claims, {}, msg=str(failure.events))
+        self.assertIn(f"{TEE_COMPONENT}.vcek_chain", event_ids(failure), msg=str(failure.events))
 
-            def encrypt(self, plaintext, padding):  # pylint: disable=unused-argument
-                raise NotImplementedError
-
-            def public_numbers(self):
-                raise NotImplementedError
-
-            def public_bytes(self, encoding, format):  # pylint: disable=redefined-builtin
-                raise NotImplementedError
-
-            def recover_data_from_signature(self, signature, padding, algorithm):  # pylint: disable=unused-argument
-                raise NotImplementedError
-
-            @property
-            def key_size(self):
-                return 0
-
-            def __eq__(self, other):
-                return self is other
-
-            def __copy__(self):
-                return self
-
-            def __deepcopy__(self, memo):  # pylint: disable=unused-argument
-                return self
-
-        self.assertFalse(az_snp_vtpm._rsa_pss_verify(UnusableKey(), b"sig", b"data"))  # pylint: disable=protected-access
+    def test_store_ask_unknown_spki_rejected_at_load(self):
+        # the store path: an ASK validly signed by its ARK but with an
+        # unknown SPKI must be rejected by load_trust_anchors, not
+        # cached and raised (or failed) during attestation. A valid
+        # milan chain rides along to show only the bad entry is dropped.
+        ask, ark = TRUST_ANCHORS["genoa"]
+        bad_ask = self.cert_with_unknown_spki(ask)
+        with tempfile.TemporaryDirectory() as store:
+            with open(os.path.join(store, "genoa_ask_ark.pem"), "wb") as f:
+                f.write(bad_ask.public_bytes(serialization.Encoding.PEM))
+                f.write(ark.public_bytes(serialization.Encoding.PEM))
+            with open(os.path.join(ANCHOR_STORE, "milan_ask_ark.pem"), "rb") as src:
+                with open(os.path.join(store, "milan_ask_ark.pem"), "wb") as dst:
+                    dst.write(src.read())
+            with self.assertLogs("keylime.az_snp_vtpm", level=logging.WARNING):
+                chains = az_snp_vtpm.load_trust_anchors(store)
+        self.assertEqual(set(chains), {"milan"})
 
 
 class BundledAnchorTest(unittest.TestCase):
@@ -1142,7 +1154,7 @@ class TurinTcbTest(unittest.TestCase):
         # server SKU ranges
         for model in (0x00, 0x0F):  # Milan (EPYC 7003)
             self.assertEqual(self.snp_with_cpuid(0x19, model).generation, "milan")
-        for model in (0x10, 0x1F, 0xA0, 0xAF):  # Genoa (EPYC 9004, dense Bergamo/Siena)
+        for model in (0x10, 0x1F, 0xA0, 0xAE):  # Genoa (EPYC 9004, dense Bergamo/Siena)
             self.assertEqual(self.snp_with_cpuid(0x19, model).generation, "genoa")
         for model in (0x00, 0x11):  # Turin
             self.assertEqual(self.snp_with_cpuid(0x1A, model).generation, "turin")
@@ -1150,7 +1162,7 @@ class TurinTcbTest(unittest.TestCase):
     def test_unsupported_model_rejected(self):
         # client models and future SKUs are refused, not silently bucketed
         # into a generation (0x1A model 0x70 is a client Strix Halo part)
-        for family, model in ((0x19, 0x20), (0x19, 0x9F), (0x19, 0xB0), (0x1A, 0x12), (0x1A, 0x70)):
+        for family, model in ((0x19, 0x20), (0x19, 0x9F), (0x19, 0xAF), (0x19, 0xB0), (0x1A, 0x12), (0x1A, 0x70)):
             with self.subTest(family=family, model=model):
                 with self.assertRaises(ValueError):
                     self.snp_with_cpuid(family, model)
@@ -1384,17 +1396,17 @@ class MalformedEvidenceTest(unittest.TestCase):
 
     def test_v2_oversized_hcl_report(self):
         # multi-megabyte evidence is refused in phase 0, before any
-        # expensive parsing (DoS guard; real reports are ~2.6 KB)
+        # expensive decoding or parsing (DoS guard; real reports are ~2.6 KB)
         evidence = self.valid_v2_evidence()
         evidence["hcl_report"] = (
             base64.urlsafe_b64encode(bytes(az_snp_vtpm.MAX_HCL_REPORT_SIZE + 1)).decode("ascii").rstrip("=")
         )
-        self.assert_invalid_v2(evidence, code="hcl_report")
+        self.assert_invalid_v2(evidence)
 
     def test_v2_oversized_quote_message(self):
         evidence = self.valid_v2_evidence()
         evidence["tpm_quote"]["message"] = "00" * (az_snp_vtpm.MAX_QUOTE_MESSAGE_SIZE + 1)
-        self.assert_invalid_v2(evidence, code="tpm_message_parse")
+        self.assert_invalid_v2(evidence)
 
     @staticmethod
     def tamper_v2_vcek(mutate):
