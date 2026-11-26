@@ -6,7 +6,8 @@
             "add": {
                 "shutdown_drain_timeout": "10",
                 "max_workers": "16",
-                "auto_recover_attestation_failures": "False"
+                "auto_recover_attestation_failures": "False",
+                "amd_anchor_path": ""
             }
         },
         "registrar": {
