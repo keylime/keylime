@@ -1,10 +1,17 @@
 import base64
+import datetime
+import logging
 import os
 import unittest
 
 import cryptography
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 from pyasn1.codec.der import encoder
-from pyasn1.type import univ
+from pyasn1.type import char, univ
+from pyasn1_modules import rfc4108
 
 from keylime import cert_utils, tpm_ek_ca
 
@@ -340,3 +347,81 @@ VMuvlCzEwd8V/FIw"""
             result = cert_utils.unwrap_x509_octet_string(wrapped_non_cert)
         self.assertEqual(result, wrapped_non_cert)
         self.assertTrue(any("does not start with a SEQUENCE tag" in msg for msg in log.output))
+
+    @staticmethod
+    def _self_signed_cert(sans=None):
+        key = ec.generate_private_key(ec.SECP256R1())
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "keylime-test")])
+        builder = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime(2020, 1, 1, tzinfo=datetime.timezone.utc))
+            .not_valid_after(datetime.datetime(2030, 1, 1, tzinfo=datetime.timezone.utc))
+        )
+        if sans is not None:
+            builder = builder.add_extension(x509.SubjectAlternativeName(sans), critical=False)
+        return builder.sign(key, hashes.SHA256())
+
+    @staticmethod
+    def _hw_module_name(hw_type):
+        # Build the HardwareModuleName OtherName (RFC 4108) that TPM-backed
+        # IDevID/IAK certificates carry in their SubjectAltName.
+        hw_module_name = rfc4108.HardwareModuleName()
+        hw_module_name["hwType"] = univ.ObjectIdentifier(hw_type)
+        hw_module_name["hwSerialNum"] = univ.OctetString(b"keylime-test")
+        return x509.OtherName(x509.ObjectIdentifier(cert_utils.OID_HW_MODULE_NAME), encoder.encode(hw_module_name))
+
+    def test_check_tpm_origin_no_subject_alt_name(self):
+        # A certificate without a SubjectAltName extension must not crash
+        # check_tpm_origin. Per the registrar's design (see issue #1612 / PR #1637)
+        # the check only warns and returns True ("we are not sure") instead of
+        # raising ExtensionNotFound.
+        cert = self._self_signed_cert(sans=None)
+        with self.assertLogs("keylime.cert_utils", level="WARNING") as log:
+            result = cert_utils.check_tpm_origin(cert, "IDevID")
+        self.assertTrue(result)
+        self.assertTrue(any("did not contain a SubjectAltName" in msg for msg in log.output))
+
+    def test_check_tpm_origin_san_without_othername(self):
+        # A SubjectAltName that contains no OtherName entry must not crash
+        # check_tpm_origin with an IndexError; it should warn and return True.
+        cert = self._self_signed_cert(sans=[x509.DNSName("example.com")])
+        with self.assertLogs("keylime.cert_utils", level="WARNING") as log:
+            result = cert_utils.check_tpm_origin(cert, "IAK")
+        self.assertTrue(result)
+        self.assertTrue(any("did not contain the HW module name" in msg for msg in log.output))
+
+    def test_check_tpm_origin_othername_not_hw_module_name(self):
+        # An OtherName of some other type (here a User Principal Name) is not
+        # evidence either way, so the check should warn and return True.
+        upn = x509.OtherName(
+            x509.ObjectIdentifier("1.3.6.1.4.1.311.20.2.3"), encoder.encode(char.UTF8String("keylime@example.com"))
+        )
+        cert = self._self_signed_cert(sans=[upn])
+        with self.assertLogs("keylime.cert_utils", level="WARNING") as log:
+            result = cert_utils.check_tpm_origin(cert, "IDevID")
+        self.assertTrue(result)
+        self.assertTrue(any("did not contain the HW module name" in msg for msg in log.output))
+
+    def test_check_tpm_origin_wrong_hw_type(self):
+        # A HardwareModuleName whose hwType is not the TPM OID is the one case
+        # where the certificate positively did not come from a TPM, so this is
+        # the only path on which the check must fail.
+        cert = self._self_signed_cert(sans=[self._hw_module_name("1.2.3.4")])
+        with self.assertLogs("keylime.cert_utils", level="ERROR") as log:
+            result = cert_utils.check_tpm_origin(cert, "IAK")
+        self.assertFalse(result)
+        self.assertTrue(any("did not contain the correct hwType OID" in msg for msg in log.output))
+
+    def test_check_tpm_origin_tpm_hw_type(self):
+        # A HardwareModuleName carrying the TPM hwType is accepted on its own
+        # merits, i.e. without any of the "we are not sure" warnings above.
+        cert = self._self_signed_cert(sans=[self._hw_module_name(cert_utils.OID_HWTYPE_TPM)])
+        with self.assertLogs("keylime.cert_utils", level="DEBUG") as log:
+            result = cert_utils.check_tpm_origin(cert, "IDevID")
+        self.assertTrue(result)
+        self.assertTrue(any("seems to have come from a TPM" in msg for msg in log.output))
+        self.assertFalse(any(record.levelno >= logging.WARNING for record in log.records))

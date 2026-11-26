@@ -1,5 +1,12 @@
 name: PR code coverage measurement on codecov.io
 
+# This workflow handles fork-based PRs where the commit SHA originates from
+# the contributor's fork. Because the workflow is triggered by check_run
+# events rather than pull_request events, codecov cannot automatically
+# determine the associated PR. The commit SHA (head_sha) belongs to the
+# fork's branch, so we explicitly query the upstream repository's API to
+# resolve the PR number and pass it to codecov via override_pr.
+
 on:
   check_run:
     types: [completed]
@@ -10,6 +17,11 @@ jobs:
     if: contains(github.event.check_run.name, 'testing-farm:fedora-43-x86_64:full')
     runs-on: ubuntu-latest
     continue-on-error: true
+    # Needed so the GITHUB_TOKEN can query the PR associated with the commit
+    # via the GitHub API (repos/.../commits/<sha>/pulls)
+    permissions:
+      contents: read
+      pull-requests: read
     name: Submit code coverage from Packit tests
     defaults:
       run:
@@ -26,6 +38,36 @@ jobs:
         SLEEP_DELAY: 120
     - name: List downloaded files
       run: ls coverage*
+    - name: Fetch PR number for Commit
+      id: get_pr
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        HEAD_SHA: ${{ github.event.check_run.head_sha }}
+        REPO: ${{ github.repository }}
+      run: |
+        # The check_run event carries only the commit SHA, not the PR. For
+        # fork-based PRs the base repo's commits/<sha>/pulls endpoint returns
+        # nothing, so we use the search API (which does index fork-PR commits)
+        # to resolve the open PR associated with this commit. We require exactly
+        # one open match to avoid associating coverage with the wrong PR.
+        # A gh failure (e.g. a search API rate limit) must not abort the step:
+        # under "bash -e" that would skip all upload steps, and with the job's
+        # continue-on-error it would drop coverage silently with a green check.
+        # Degrade to upload-without-PR-association instead, like the count guard.
+        if ! NUMBERS=$(gh pr list --repo "$REPO" --state open --search "$HEAD_SHA" --json number --jq '.[].number'); then
+          echo "::warning::gh pr list failed for commit $HEAD_SHA - coverage will be uploaded without PR association"
+          PR_NUMBER=""
+        else
+          COUNT=$(printf '%s\n' "$NUMBERS" | grep -c '[0-9]' || true)
+          if [ "$COUNT" -eq 1 ]; then
+            PR_NUMBER=$(printf '%s\n' "$NUMBERS" | head -n1)
+            echo "Found PR: $PR_NUMBER"
+          else
+            echo "::warning::Expected exactly one open PR for commit $HEAD_SHA, found $COUNT - coverage will be visible in codecov WebUI but no PR comment will be posted"
+            PR_NUMBER=""
+          fi
+        fi
+        echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
     - name: Upload coverage.unittests.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
       env:
@@ -34,6 +76,8 @@ jobs:
         files: scripts/coverage.unittests.xml
         disable_search: true
         flags: unittests
+        override_commit: ${{ github.event.check_run.head_sha }}
+        override_pr: ${{ steps.get_pr.outputs.pr_number }}
     - name: Upload coverage.testsuite.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
       env:
@@ -42,6 +86,8 @@ jobs:
         files: scripts/coverage.testsuite.xml
         disable_search: true
         flags: testsuite
+        override_commit: ${{ github.event.check_run.head_sha }}
+        override_pr: ${{ steps.get_pr.outputs.pr_number }}
     - name: Upload coverage.packit.xml report to Codecov with GitHub Action
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
       env:
@@ -50,3 +96,5 @@ jobs:
         files: scripts/coverage.packit.xml
         disable_search: true
         flags: packit-e2e
+        override_commit: ${{ github.event.check_run.head_sha }}
+        override_pr: ${{ steps.get_pr.outputs.pr_number }}
