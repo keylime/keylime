@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from typing import List, Optional
 
@@ -34,11 +35,55 @@ logger = keylime_logging.init_logging("verifier")
 class VerifierServer(Server):
     def __init__(self) -> None:
         super().__init__()
+        self._init_jwt_signer()
         self._prepare_agents_on_startup()
         self._clear_stale_sessions_on_startup()
         self._all_agents: List[VerfierMain] = []
         self._worker_agents: Optional[List[VerfierMain]] = None
         self._activate_task: Optional[asyncio.Task[None]] = None
+
+    def _init_jwt_signer(self) -> None:
+        """Resolve the JWT signing key and instantiate the signer.
+
+        This must run in the parent process before workers are forked: the
+        signer is held as an instance attribute and inherited by the workers,
+        so all of them sign with the same key (and the same kid) that the
+        JWKS endpoint will serve. Resolving the key per worker instead would
+        give each one a different key on first boot. The issuer may remain
+        unset here; its resolution and fail-fast validation happen at
+        startup validation, and the signer refuses to sign without one.
+        """
+        # pylint: disable=import-outside-toplevel  # jwcrypto is only needed by the
+        # verifier: importing it at module scope would make it a startup dependency
+        # of every component that imports keylime.web (the registrar does), which
+        # never signs anything.
+        from keylime import jwt
+
+        # A present-but-blank option behaves exactly like an absent one:
+        # re-rendered configuration files (and config-management tools)
+        # can carry empty jwt_* lines, and those must fall back to the
+        # defaults rather than fail startup.
+        algorithm = config.get("verifier", "jwt_signing_algorithm", fallback="ES256") or "ES256"
+        key_path = config.get("verifier", "jwt_signing_key") or None
+        password = config.get("verifier", "jwt_signing_key_password") or None
+        issuer = config.get("verifier", "jwt_issuer") or None
+        raw_expiration = config.get("verifier", "jwt_expiration_seconds", fallback="")
+        if raw_expiration and raw_expiration.strip():
+            try:
+                expiration = int(raw_expiration)
+            except ValueError as e:
+                raise jwt.JwtSigningError(
+                    f"jwt_expiration_seconds in the [verifier] section must be an integer number of seconds: {e}"
+                ) from e
+        else:
+            expiration = jwt.DEFAULT_EXPIRATION_SECONDS
+
+        autogen_path = os.path.join(config.WORK_DIR, jwt.AUTOGEN_KEY_DIRNAME, jwt.AUTOGEN_KEY_FILENAME)
+        signing_key = jwt.resolve_signing_key(key_path or None, password or None, algorithm, autogen_path)
+        self.jwt_signer: jwt.JwtSigner = jwt.JwtSigner(
+            signing_key, algorithm, issuer=issuer or None, expiration_seconds=expiration
+        )
+        logger.info("JWT signing ready, algorithm=%s kid=%s", algorithm, self.jwt_signer.kid)
 
     def _pre_fork(self) -> None:
         """Query agents from database before forking (only needed for PULL mode)."""
