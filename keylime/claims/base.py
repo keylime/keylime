@@ -12,7 +12,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, ClassVar, Dict, Literal, Mapping, Optional, Sequence
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Mapping, Optional, Sequence
 
 Status = Literal["pass", "fail", "error"]
 PolicySource = Literal["inline", "registered"]
@@ -100,8 +100,9 @@ class EvaluationResult:
     policy_revision: Optional[int] = None
     resolved_sub_policies: Optional[Dict[str, Any]] = None
     trustworthiness: Optional[Dict[str, Any]] = None
-    # Binds the verdict to the policy CONTENT (the name only names the source):
-    policy_fingerprint: Optional[str] = None
+    trust_anchor_fingerprints: Optional[List[str]] = None
+    # Phase 3 per-submod keylime_evidence_nonce; threads from the evidence.
+    evidence_nonce: Optional[str] = None
 
 
 @dataclass

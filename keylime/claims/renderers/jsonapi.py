@@ -19,8 +19,8 @@ from keylime.claims.base import (
     EvaluationResult,
     KeylimeClaimsError,
     OutputFormat,
-    Renderer,
     RenderedResponse,
+    Renderer,
     Signer,
     VerificationOutput,
 )
@@ -60,14 +60,18 @@ class JsonApiRenderer(Renderer):
                 output.ear_token = token  # write-once (audit)
                 logger.info("EAR token issued: jti=%s", output.ear_claims["jti"])
         body = self._envelope(output.results, attestation_result=token)
+        # No explicit status on the evaluation-error path either: per the
+        # plan, JSON:API evaluation-level errors are HTTP 200 with
+        # attestation_result null — the request is valid, the verifier
+        # cannot evaluate (some of) it.
         return RenderedResponse(
-            content_type=self.format.value, body=body, headers={"Vary": "Accept"}
+            content_type=self.format.value,
+            body=body,
+            headers={"Vary": "Accept"},
         )
 
     @staticmethod
-    def _envelope(
-        results: Sequence[EvaluationResult], *, attestation_result: Optional[str]
-    ) -> Dict[str, Any]:
+    def _envelope(results: Sequence[EvaluationResult], *, attestation_result: Optional[str]) -> Dict[str, Any]:
         # TODO: full envelope — results array with all fields
         #   (forward-compatible nulls), same claims objects as the token
         #   submods use. ``results`` is threaded for that pending

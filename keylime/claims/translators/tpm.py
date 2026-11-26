@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Mapping, Optional
 
 from keylime import config, keylime_logging
 from keylime.claims.base import ClaimsTranslator, EvaluatedEvidence
-from keylime.claims.failures import normalize_event
+from keylime.claims.failures import bounded_failure_entries
 from keylime.claims.registry import register_evidence_type
 
 logger = keylime_logging.init_logging("claims.translators.tpm")
@@ -91,9 +91,7 @@ class TpmClaimsTranslator(ClaimsTranslator):
         return hash_alg
 
     @staticmethod
-    def _ima(
-        evidence: Mapping[str, Any], failure: Any, pcrs: Mapping[str, str]
-    ) -> Dict[str, Any]:
+    def _ima(evidence: Mapping[str, Any], failure: Any, pcrs: Mapping[str, str]) -> Dict[str, Any]:
         """IMA facts: submitted-log count, boot aggregate, evaluated flag,
         and the evaluator's violations.
 
@@ -130,16 +128,11 @@ class TpmClaimsTranslator(ClaimsTranslator):
         # documented meaning of the flag on the Failure object) — on the
         # one-shot path exactly the quote-validation failures mark it.
         short_circuited = any(
-            not getattr(event, "recoverable", True)
-            for event in (getattr(failure, "events", None) or [])
+            not getattr(event, "recoverable", True) for event in (getattr(failure, "events", None) or [])
         )
         # Mirrors the evaluator's own IMA gate (config.IMA_PCR, the IMA
         # PCR the verifier checks) — a constant, not ambient config.
-        evaluated = (
-            str(config.IMA_PCR) in pcrs
-            and isinstance(raw_ima_list, str)
-            and not short_circuited
-        )
+        evaluated = str(config.IMA_PCR) in pcrs and isinstance(raw_ima_list, str) and not short_circuited
 
         return {
             "entries_count": entries_count,
@@ -153,22 +146,22 @@ class TpmClaimsTranslator(ClaimsTranslator):
         """Failure events caused by the IMA check, as plain dicts.
 
         Filtered by the INTERNAL event-id prefix "ima." — the real ids
-        are stable regardless of external naming decisions. Each
-        matching event goes through the same normalization (mapping +
-        bounds) as the general failure list, then is emitted as
-        {type, message, context} — the same wire shape as
+        are stable regardless of external naming decisions. The
+        matching events go through the same normalization (mapping +
+        bounds + entry cap) as the general failure list, then are
+        emitted as {type, message, context} — the same wire shape as
         keylime_failures, and plain JSON-serializable types as the
         translator contract requires (the claims go straight to the
         signer's json.dumps).
         """
-        events = list(getattr(failure, "events", None) or [])
+        events = [
+            event
+            for event in (getattr(failure, "events", None) or [])
+            if getattr(event, "event_id", "").startswith(_IMA_EVENT_PREFIX)
+        ]
         return [
             {"type": entry.type, "message": entry.message, "context": entry.context}
-            for entry in (
-                normalize_event(event)
-                for event in events
-                if getattr(event, "event_id", "").startswith(_IMA_EVENT_PREFIX)
-            )
+            for entry in bounded_failure_entries(events)
         ]
 
     @staticmethod
@@ -187,7 +180,7 @@ class TpmClaimsTranslator(ClaimsTranslator):
 
             entry = ast.Entry(first_line)
             mode = entry.mode
-            if not isinstance(mode, (ast.ImaNg, ast.ImaSig)):
+            if not isinstance(mode, (ast.Ima, ast.ImaNg, ast.ImaSig)):
                 return None
             if mode.path.name != "boot_aggregate":
                 return None
@@ -229,9 +222,7 @@ class TpmClaimsTranslator(ClaimsTranslator):
             from keylime.mba import mba as mba_module  # pylint: disable=import-outside-toplevel
 
             if not mba_module._mba_imports:  # pylint: disable=protected-access
-                logger.warning(
-                    "Measured-boot parsers not initialized in this process; loading the default parsers"
-                )
+                logger.warning("Measured-boot parsers not initialized in this process; loading the default parsers")
                 mba_module.load_imports(skip_custom_policies=True)
 
             mb_pcrs_hashes, boot_aggregates, mb_data, _mb_failure = mba_module.bootlog_parse(mb_log, hash_alg)

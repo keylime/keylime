@@ -14,19 +14,25 @@ import re
 import time
 import uuid
 from collections import Counter
-from importlib.metadata import PackageNotFoundError, version as _package_version
-from typing import Any, Dict, List, Optional
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _package_version
+from typing import Any, Dict, List, Optional, get_args
 
-from keylime.claims.base import EvaluationResult, KeylimeClaimsError
+from keylime.claims.base import EvaluationResult, KeylimeClaimsError, PolicySource, Status
 
-EAR_PROFILE = "tag:ietf.org,2026:rats/ear#05"
+EAR_PROFILE = "tag:ietf.org,2026:rats/ear#04"
 DEFAULT_VERIFIER_DEVELOPER = "https://keylime.dev"
+
+_ALLOWED_STATUSES = frozenset(get_args(Status))
+_ALLOWED_POLICY_SOURCES = frozenset(get_args(PolicySource))
 
 _NONCE_MIN_BYTES = 16
 _NONCE_MAX_BYTES = 64
 
-# Strict base64url alphabet (RFC 4648 section 5) with optional padding.
-_BASE64URL_RE = re.compile(r"[A-Za-z0-9_-]*={0,2}")
+# Standard base64 alphabet (RFC 4648 section 4) with optional padding:
+# draft-ietf-rats-ear-04, the profile EAR_PROFILE advertises, specifies
+# base64 for eat_nonce.
+_BASE64_RE = re.compile(r"[A-Za-z0-9+/]*={0,2}")
 
 
 def assemble_ear_claims(
@@ -85,9 +91,12 @@ def assemble_ear_claims(
             "ear_attester_claims": r.claims,
             "keylime_evidence_type": r.evidence_type,
             "keylime_policy_source": r.policy_source,
-            "keylime_policy_fingerprint": r.policy_fingerprint,
             "keylime_failures": [_entry_to_dict(f) for f in r.failures],
-            # Future slots (trustworthiness, trust anchors) — not added yet.
+            # Present but null until the computation lands, so no
+            # half-finished claim ever gets signed.
+            "ear_trustworthiness_vector": r.trustworthiness,
+            "keylime_trust_anchor_fingerprints": r.trust_anchor_fingerprints,
+            "keylime_evidence_nonce": r.evidence_nonce,
         }
 
     return {
@@ -105,8 +114,12 @@ def assemble_ear_claims(
 
 
 def _validate_inputs(
-    results: List[EvaluationResult], nonce: str, ttl: int, jti: Optional[str],
-    iat: Optional[int] = None, iss: Optional[str] = None,
+    results: List[EvaluationResult],
+    nonce: str,
+    ttl: int,
+    jti: Optional[str],
+    iat: Optional[int] = None,
+    iss: Optional[str] = None,
 ) -> int:
     """Run the input guards in order (before the error short-circuit, so
     input errors surface even when an evaluation also errored); return
@@ -119,8 +132,16 @@ def _validate_inputs(
     for r in results:
         eid = r.evaluation_id
         if not isinstance(eid, str) or not eid or len(eid) > 128:
+            raise KeylimeClaimsError(f"evaluation_id must be a non-empty string of at most 128 characters, got {eid!r}")
+        # A misspelled status would skip the error veto and get signed as a fail.
+        if r.status not in _ALLOWED_STATUSES:
             raise KeylimeClaimsError(
-                f"evaluation_id must be a non-empty string of at most 128 characters, got {eid!r}"
+                f"result {eid!r} has invalid status {r.status!r}; expected one of {sorted(_ALLOWED_STATUSES)}"
+            )
+        if r.policy_source not in _ALLOWED_POLICY_SOURCES:
+            raise KeylimeClaimsError(
+                f"result {eid!r} has invalid policy_source {r.policy_source!r}; "
+                f"expected one of {sorted(_ALLOWED_POLICY_SOURCES)}"
             )
 
     ids = [r.evaluation_id for r in results]
@@ -162,22 +183,24 @@ def _validate_inputs(
 
 
 def _validate_nonce(nonce: str) -> None:
-    """Enforce the nonce contract: base64url, 16-64 decoded bytes.
+    """Enforce the nonce contract: base64, 16-64 decoded bytes.
 
-    The stdlib cannot check this directly — the decoder's altchars mode
-    still accepts + and /, so the alphabet is checked by regex first —
-    then the re-padded string is decoded strictly with the URL-safe
-    alternative alphabet, which also rejects non-canonical lengths.
+    The alphabet is checked by regex first (standard base64, not the
+    URL-safe variant: the advertised profile, draft-ietf-rats-ear-04,
+    specifies base64), then the string is decoded strictly, which also
+    rejects non-canonical lengths and malformed padding. The accepted
+    string is echoed into eat_nonce unchanged, so the relying party can
+    compare it byte-for-byte against the challenge it sent.
     """
     if not isinstance(nonce, str) or not nonce:
-        raise KeylimeClaimsError("nonce must be a non-empty base64url string")
-    if _BASE64URL_RE.fullmatch(nonce) is None:
-        raise KeylimeClaimsError("nonce is not valid base64url")
+        raise KeylimeClaimsError("nonce must be a non-empty base64 string")
+    if _BASE64_RE.fullmatch(nonce) is None:
+        raise KeylimeClaimsError("nonce is not valid base64")
     padded = nonce + "=" * (-len(nonce) % 4)
     try:
-        decoded = base64.b64decode(padded, altchars=b"-_", validate=True)
+        decoded = base64.b64decode(padded, validate=True)
     except (binascii.Error, ValueError) as e:
-        raise KeylimeClaimsError("nonce is not valid base64url") from e
+        raise KeylimeClaimsError("nonce is not valid base64") from e
     if len(decoded) < _NONCE_MIN_BYTES or len(decoded) > _NONCE_MAX_BYTES:
         raise KeylimeClaimsError(
             f"nonce must decode to between {_NONCE_MIN_BYTES} and {_NONCE_MAX_BYTES} bytes, got {len(decoded)}"

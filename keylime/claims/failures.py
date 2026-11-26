@@ -2,7 +2,7 @@
 
 Keylime's internal failure events speak verifier-internal component ids
 and JSON-string contexts; this module maps each event onto a small
-external type taxonomy (eval.*, tpm.*, tee.*) so a relying party can
+external type taxonomy (eval.*, tpm.*, snp.*) so a relying party can
 interpret what failed without knowing keylime internals, and bounds the
 output so it is safe to embed in a signed token. Degradation (unparsable,
 non-object, oversized, unmapped) is never silent — it logs.
@@ -74,28 +74,48 @@ FAILURE_TYPE_MAP: Dict[Tuple[str, str], str] = {
     ("measured_boot", "*"): "tpm.mb_mismatch",
     # IMA runtime-policy violations (incl. the dm.* table events)
     ("ima", "*"): "tpm.ima_violation",
-    # TEE/SEV-SNP: the event detail is preserved. The generic TEE component
-    # serves every TEE flavor today, so the external type must not claim a
-    # specific one.
-    ("tee_attestation", "*"): "tee.<event_id>",
-    # TODO: once the failure Component enum grows per-plugin members, key
-    # the SNP flavors on their own components (both map to snp.*):
+    # TEE/SEV-SNP: the event detail is preserved. The generic TEE
+    # component serves every TEE flavor, so the external type claims no
+    # flavor by itself; the namespace is derived from the evidence type
+    # the pipeline passes in (see _tee_namespace).
+    ("tee_attestation", "*"): "<namespace>.<event_id>",
+    # TODO: the evidence-type derivation in _tee_namespace is an interim
+    # shim. The global fix is self-describing events: let
+    # Failure.add_event() carry the external namespace chosen by the
+    # producer (which knows its TEE flavor), so this layer just reads it
+    # and no derivation is needed. That requires reworking
+    # keylime/failure.py, which is out of scope here. Once it lands, also
+    # consider per-flavor components:
     #   ("snp", "*"): "snp.<event_id>",
     #   ("az_snp_vtpm", "*"): "snp.<event_id>",
 }
 
 
-def normalize_failure(failure: Any) -> List[FailureEntry]:
+def normalize_failure(failure: Any, evidence_type: Optional[str] = None) -> List[FailureEntry]:
     """Normalize a Failure object into a bounded list of FailureEntry.
 
     An empty (or absent) Failure yields []. The list is capped at
     MAX_FAILURE_ENTRIES entries including a terminal "eval.truncated"
-    marker when events were dropped.
+    marker when events were dropped. ``evidence_type`` (the coarse
+    claims category, e.g. "tee-snp") supplies the TEE failure namespace.
     """
     if failure is None:
         return []
 
     events = list(getattr(failure, "events", None) or [])
+    return bounded_failure_entries(events, evidence_type)
+
+
+def bounded_failure_entries(events: List[Any], evidence_type: Optional[str] = None) -> List[FailureEntry]:
+    """Normalize events into FailureEntry with the entry cap applied.
+
+    Shared by normalize_failure and the per-section violation lists
+    (e.g. ima.violations), so every list that can end up inside the
+    signed token stops at the same bound. The cap is inclusive: only
+    when events actually exceed MAX_FAILURE_ENTRIES is a terminal
+    "eval.truncated" marker (counted inside the cap) appended.
+    """
+    events = list(events)
     entries: List[FailureEntry] = []
     for event in events:
         if len(events) > MAX_FAILURE_ENTRIES and len(entries) >= MAX_FAILURE_ENTRIES - 1:
@@ -111,11 +131,11 @@ def normalize_failure(failure: Any) -> List[FailureEntry]:
                 )
             )
             return entries
-        entries.append(normalize_event(event))
+        entries.append(normalize_event(event, evidence_type))
     return entries
 
 
-def normalize_event(event: Any) -> FailureEntry:
+def normalize_event(event: Any, evidence_type: Optional[str] = None) -> FailureEntry:
     """Normalize ONE Failure event into a FailureEntry.
 
     Exposed as a helper so per-section claims (e.g. IMA violations inside
@@ -124,7 +144,7 @@ def normalize_event(event: Any) -> FailureEntry:
     event_id = getattr(event, "event_id", "")
     component, _, remainder = event_id.partition(".")
 
-    external_type = _map_failure_type(component, remainder)
+    external_type = _map_failure_type(component, remainder, evidence_type)
     if external_type is None:
         logger.warning(
             "No external failure type mapping for internal event id %s; emitting the generic type instead",
@@ -141,7 +161,24 @@ def normalize_event(event: Any) -> FailureEntry:
     return FailureEntry(type=external_type, message=message, context=context)
 
 
-def _map_failure_type(component: str, remainder: str) -> Optional[str]:
+def _tee_namespace(evidence_type: Optional[str]) -> str:
+    """Derive the TEE failure namespace from the coarse evidence type.
+
+    Temporary: the generic tee_attestation component serves every TEE
+    flavor and the event cannot carry its own identity until the failure
+    model is reworked globally (see the TODO in FAILURE_TYPE_MAP). Until
+    then the evidence type — the only thing that knows the flavor —
+    supplies it: "tee-snp" -> "snp", "tee-tdx" -> "tdx"; anything else
+    claims no flavor ("tee").
+    """
+    if evidence_type and evidence_type.startswith("tee-"):
+        candidate = evidence_type[len("tee-") :]
+        if _EXTERNAL_ID_RE.fullmatch(candidate):
+            return candidate
+    return "tee"
+
+
+def _map_failure_type(component: str, remainder: str, evidence_type: Optional[str] = None) -> Optional[str]:
     """Return the external type for a (component, remainder) pair, or None.
 
     Longest-match-wins: exact remainder beats any prefix, a longer prefix
@@ -169,6 +206,9 @@ def _map_failure_type(component: str, remainder: str) -> Optional[str]:
 
     if best_external is None:
         return None
+    if "<namespace>" in best_external:
+        namespace = _tee_namespace(evidence_type)
+        best_external = best_external.replace("<namespace>", namespace)
     if "<event_id>" in best_external:
         if not _EXTERNAL_ID_RE.fullmatch(remainder):
             # The remainder is substituted into a type field that
@@ -188,8 +228,10 @@ def _extract_message_and_context(event: Any) -> Tuple[str, Optional[Dict[str, An
     if isinstance(raw, str):
         try:
             parsed = json.loads(raw)
-        except (ValueError, TypeError):
-            logger.warning("Unparsable event context on event id %s; dropping the context", getattr(event, "event_id", ""))
+        except (ValueError, TypeError, RecursionError):
+            logger.warning(
+                "Unparsable event context on event id %s; dropping the context", getattr(event, "event_id", "")
+            )
             parsed = None
     elif isinstance(raw, dict):
         parsed = dict(raw)
@@ -223,11 +265,14 @@ def _bound_context(context: Dict[str, Any], event_id: str = "") -> Optional[Dict
 
     Returns None when the serialized context exceeds MAX_CONTEXT_BYTES.
     """
-    bounded: Dict[str, Any] = _truncate_strings(context)
     try:
+        bounded: Dict[str, Any] = _truncate_strings(context)
         serialized = json.dumps(bounded)
-    except (TypeError, ValueError):
-        logger.warning("Non-serializable event context on event id %s; dropping the context", event_id)
+    except (TypeError, ValueError, RecursionError):
+        logger.warning(
+            "Event context on event id %s is unserializable or too deeply nested; dropping the context",
+            event_id,
+        )
         return None
     # Measure bytes, not characters, so the bound survives a future switch
     # to non-ASCII serialization.

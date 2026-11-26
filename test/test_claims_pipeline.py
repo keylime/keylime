@@ -22,7 +22,7 @@ from keylime.tpm.tpm_main import Tpm
 
 _QUOTE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "test-data", "files")
 
-_VALID_NONCE = base64.urlsafe_b64encode(b"n" * 32).decode().rstrip("=")
+_VALID_NONCE = base64.b64encode(b"n" * 32).decode()
 
 
 def _b64file(name: str) -> str:
@@ -40,8 +40,14 @@ def _real_quote_nonce() -> bytes:
         return f.read()
 
 
-def _make_item(evidence: Dict[str, Any], policies: Dict[str, Any], failure: Any,
-               status: str, evaluation_id: str = "default", evidence_type: str = "tpm") -> EvaluatedEvidence:
+def _make_item(
+    evidence: Dict[str, Any],
+    policies: Dict[str, Any],
+    failure: Any,
+    status: str,
+    evaluation_id: str = "default",
+    evidence_type: str = "tpm",
+) -> EvaluatedEvidence:
     return EvaluatedEvidence(
         evaluation_id=evaluation_id,
         evidence_id=evaluation_id,
@@ -83,62 +89,82 @@ class PipelineShapeTest(unittest.TestCase):
         self.assertIsNone(output.ear_claims)
         self.assertEqual(len(output.results), 1)
 
-    def test_unsupported_evidence_type_raises(self) -> None:
-        item = _make_item(evidence={}, policies={}, failure=Failure(Component.DEFAULT),
-                          status="pass", evidence_type="tee-tdx")
+    def test_pass_with_failure_events_raises(self) -> None:
+        # The verdict derives from status alone, so a "pass" carrying
+        # failure events would be an affirming token contradicting its
+        # own keylime_failures.
+        failure = Failure(Component.IMA, ["validation", "ima-ng"])
+        failure.add_event("not_in_allowlist", {"message": "m"}, True)
+        item = _make_item(evidence={}, policies={}, failure=failure, status="pass")
         with self.assertRaises(KeylimeClaimsError):
             build_verification_output([item], nonce=_VALID_NONCE, iss="https://v")
+
+    def test_fail_without_failure_events_warns(self) -> None:
+        # Soft direction: future CRL notes will arrive as low-severity
+        # events, so fail-without-events only warns.
+        item = _make_item(evidence={}, policies={}, failure=Failure(Component.DEFAULT), status="fail")
+        with self.assertLogs("keylime.claims.pipeline", level="WARNING"):
+            output = build_verification_output([item], nonce=_VALID_NONCE, iss="https://v")
+        self.assertEqual(output.results[0].status, "fail")
+
+    def test_unsupported_evidence_type_degrades_to_error_result(self) -> None:
+        # Per the plan's error model: an unknown evidence type is an
+        # evaluation-level error, not a request-level abort.
+        item = _make_item(
+            evidence={}, policies={}, failure=Failure(Component.DEFAULT), status="pass", evidence_type="tee-tdx"
+        )
+        output = build_verification_output([item], nonce=_VALID_NONCE, iss="https://v")
+        self.assertEqual(len(output.results), 1)
+        result = output.results[0]
+        self.assertEqual(result.status, "error")
+        self.assertEqual(result.failures[0].type, "eval.unsupported_evidence_type")
+        self.assertIsNone(output.ear_claims)  # any error -> no token
 
     def test_tee_snp_skeleton_degrades_gracefully(self) -> None:
         # The SNP translator skeleton is REGISTERED (reachable through the
-        # pipeline) but not implemented: it must raise the same caller-
-        # mappable error as an unknown evidence type, not crash.
-        item = _make_item(evidence={}, policies={}, failure=Failure(Component.DEFAULT),
-                          status="pass", evidence_type="tee-snp")
-        with self.assertRaises(KeylimeClaimsError):
-            build_verification_output([item], nonce=_VALID_NONCE, iss="https://v")
+        # pipeline) but not implemented: the item degrades to an error
+        # result instead of aborting the request.
+        item = _make_item(
+            evidence={}, policies={}, failure=Failure(Component.DEFAULT), status="pass", evidence_type="tee-snp"
+        )
+        output = build_verification_output([item], nonce=_VALID_NONCE, iss="https://v")
+        self.assertEqual(output.results[0].status, "error")
+        self.assertEqual(output.results[0].failures[0].type, "eval.translation_error")
+        self.assertIsNone(output.ear_claims)
+
+    def test_failed_evaluation_does_not_abort_other_evaluations(self) -> None:
+        # The plan's Phase 3 error model: one evaluation erroring must not
+        # destroy the results of the others in the same request.
+        snp_item = _make_item(
+            evidence={}, policies={}, failure=Failure(Component.DEFAULT), status="pass", evidence_type="tee-snp"
+        )
+        tpm_item = _make_item(
+            evidence={"hash_alg": "sha256"},
+            policies={"tpm_policy": "{}"},
+            failure=Failure(Component.IMA, ["validation", "ima-ng"]),
+            status="fail",
+            evaluation_id="second",
+        )
+        tpm_item.failure.add_event("not_in_allowlist", {"message": "m"}, True)
+        output = build_verification_output([snp_item, tpm_item], nonce=_VALID_NONCE, iss="https://v")
+        self.assertEqual(len(output.results), 2)
+        self.assertEqual(output.results[0].status, "error")
+        self.assertEqual(output.results[1].status, "fail")
+        self.assertIn("pcrs", output.results[1].claims)  # TPM item still translated
+        self.assertIsNone(output.ear_claims)
 
     def test_claims_shared_by_reference_between_results_and_ear(self) -> None:
-        item = _make_item(evidence={"hash_alg": "sha256"}, policies={"tpm_policy": "{}"},
-                          failure=Failure(Component.DEFAULT), status="pass")
+        item = _make_item(
+            evidence={"hash_alg": "sha256"},
+            policies={"tpm_policy": "{}"},
+            failure=Failure(Component.DEFAULT),
+            status="pass",
+        )
         output = build_verification_output([item], nonce=_VALID_NONCE, iss="https://v")
         self.assertIs(
             output.results[0].claims,
             output.ear_claims["submods"]["default"]["ear_attester_claims"],
         )
-
-    def test_policy_fingerprint_binds_policy_content(self) -> None:
-        # Same policy LABEL, different CONTENT -> different fingerprint.
-        ev = {"hash_alg": "sha256"}
-        fail = Failure(Component.DEFAULT)
-        item_a = _make_item(ev, {"tpm_policy": '{"0": ["aa"]}'}, fail, "pass")
-        item_b = _make_item(ev, {"tpm_policy": '{"0": ["bb"]}'}, fail, "pass")
-
-        output_a = build_verification_output([item_a], nonce=_VALID_NONCE, iss="https://v")
-        output_b = build_verification_output([item_b], nonce=_VALID_NONCE, iss="https://v")
-
-        fp_a = output_a.ear_claims["submods"]["default"]["keylime_policy_fingerprint"]
-        fp_b = output_b.ear_claims["submods"]["default"]["keylime_policy_fingerprint"]
-        self.assertNotEqual(fp_a, fp_b)
-        self.assertTrue(fp_a.startswith("sha256:"))
-
-    def test_no_policy_yields_none_fingerprint(self) -> None:
-        item = _make_item(evidence={}, policies={}, failure=Failure(Component.DEFAULT), status="pass")
-        output = build_verification_output([item], nonce=_VALID_NONCE, iss="https://v")
-        self.assertIsNone(output.ear_claims["submods"]["default"]["keylime_policy_fingerprint"])
-
-    def test_non_serializable_policy_yields_none_fingerprint(self) -> None:
-        # A non-JSON value (e.g. a set) must degrade to None with a
-        # warning — never be repr()'d into the canonical form, whose
-        # ordering varies per process and would silently change the
-        # fingerprint across restarts.
-        item = _make_item(
-            evidence={}, policies={"tpm_policy": {"unserializable": {1, 2, 3}}},
-            failure=Failure(Component.DEFAULT), status="pass",
-        )
-        with self.assertLogs("keylime.claims.pipeline", level="WARNING"):
-            output = build_verification_output([item], nonce=_VALID_NONCE, iss="https://v")
-        self.assertIsNone(output.ear_claims["submods"]["default"]["keylime_policy_fingerprint"])
 
 
 class PipelineSmokeTest(unittest.TestCase):
@@ -159,11 +185,8 @@ class PipelineSmokeTest(unittest.TestCase):
         mba_module._mba_imports = self._saved_imports  # pylint: disable=protected-access
 
     @staticmethod
-    def _verify(ek: str, ak: str, quote: str, nonce: bytes, hash_alg: str,
-                tpm_policy: str) -> Failure:
-        return cvc.process_verify_attestation(
-            ek, ak, quote, nonce, hash_alg, tpm_policy, None, "", None, None
-        )
+    def _verify(ek: str, ak: str, quote: str, nonce: bytes, hash_alg: str, tpm_policy: str) -> Failure:
+        return cvc.process_verify_attestation(ek, ak, quote, nonce, hash_alg, tpm_policy, None, "", None, None)
 
     @staticmethod
     def _ek() -> str:
@@ -197,10 +220,13 @@ class PipelineSmokeTest(unittest.TestCase):
         submod = output.ear_claims["submods"]["default"]
         self.assertEqual(submod["ear_status"], "affirming")
         self.assertEqual(output.ear_claims["ear_status"], "affirming")
-        # Present and bound to the policy CONTENT — the binding behavior
-        # itself (same label, different content -> different digest) has
-        # its own dedicated test in PipelineShapeTest.
-        self.assertIsNotNone(submod["keylime_policy_fingerprint"])
+        # Removed with D2: policy identity is carried by
+        # ear_appraisal_policy_ids; the slot must be gone from the wire.
+        self.assertNotIn("keylime_policy_fingerprint", submod)
+        # Deferred slots are present on the wire with null values.
+        self.assertIsNone(submod["ear_trustworthiness_vector"])
+        self.assertIsNone(submod["keylime_trust_anchor_fingerprints"])
+        self.assertIsNone(submod["keylime_evidence_nonce"])
 
         # The merge-gate signing claim: the signer actually runs, exactly
         # once, and the payload survives serialization end-to-end (a

@@ -45,7 +45,6 @@ def _make_output(status: str = "pass") -> VerificationOutput:
             "ear_attester_claims": result.claims,
             "keylime_evidence_type": "tpm",
             "keylime_policy_source": "inline",
-            "keylime_policy_fingerprint": None,
             "keylime_failures": [],
         }
     }
@@ -83,12 +82,15 @@ class EarJwtRendererTest(unittest.TestCase):
         self.assertEqual(response.content_type, f'application/eat+jwt; eat_profile="{EAR_PROFILE}"')
 
     def test_error_output_yields_problem_details(self) -> None:
-        response = render_response(_make_output(status="error"), output_format=OutputFormat.EAR_JWT, signer=_sentinel_signer)
+        response = render_response(
+            _make_output(status="error"), output_format=OutputFormat.EAR_JWT, signer=_sentinel_signer
+        )
         self.assertEqual(response.content_type, "application/problem+json")
         self.assertIsInstance(response.body, dict)
-        # An infra error must never derive as 2xx (fail-open seam).
-        self.assertEqual(response.status, 500)
-        self.assertEqual(response.body["status"], 500)
+        # An infra error must never derive as 2xx; the plan pins 502 (the
+        # verifier reports an upstream/pipeline failure).
+        self.assertEqual(response.status, 502)
+        self.assertEqual(response.body["status"], 502)
 
     def test_missing_signer_with_claims_raises(self) -> None:
         with self.assertRaises(KeylimeClaimsError):
@@ -98,7 +100,7 @@ class EarJwtRendererTest(unittest.TestCase):
         # No claims were assembled, so no signer is needed.
         response = render_response(_make_output(status="error"), output_format=OutputFormat.EAR_JWT, signer=None)
         self.assertEqual(response.content_type, "application/problem+json")
-        self.assertEqual(response.status, 500)
+        self.assertEqual(response.status, 502)
 
 
 class JsonApiRendererTest(unittest.TestCase):
@@ -108,10 +110,17 @@ class JsonApiRendererTest(unittest.TestCase):
         self.assertEqual(response.content_type, "application/vnd.api+json")
         self.assertEqual(response.body["data"]["attributes"]["attestation_result"], _SENTINEL_TOKEN)
         self.assertEqual(output.ear_token, _SENTINEL_TOKEN)
+        self.assertIsNone(response.status)
 
     def test_error_output_yields_null_attestation_result(self) -> None:
-        response = render_response(_make_output(status="error"), output_format=OutputFormat.JSONAPI, signer=_sentinel_signer)
+        response = render_response(
+            _make_output(status="error"), output_format=OutputFormat.JSONAPI, signer=_sentinel_signer
+        )
         self.assertIsNone(response.body["data"]["attributes"]["attestation_result"])
+        # Per the plan, JSON:API evaluation-level errors are HTTP 200: the
+        # request is valid, the verifier cannot evaluate (some of) it.
+        # None derives the 2xx from the envelope body.
+        self.assertIsNone(response.status)
 
     def test_missing_signer_with_claims_raises(self) -> None:
         with self.assertRaises(KeylimeClaimsError):
@@ -184,9 +193,7 @@ class SignerErrorTest(unittest.TestCase):
         for output_format in (OutputFormat.EAR_JWT, OutputFormat.JSONAPI):
             with self.subTest(output_format=output_format):
                 with self.assertRaises(KeylimeClaimsError) as ctx:
-                    render_response(
-                        _make_output(), output_format=output_format, signer=self._raising_signer
-                    )
+                    render_response(_make_output(), output_format=output_format, signer=self._raising_signer)
                 # The original cause stays visible for diagnostics.
                 self.assertIsInstance(ctx.exception.__cause__, self._CryptoError)
 
@@ -215,7 +222,9 @@ class MutationIsolationTest(unittest.TestCase):
     def test_mutating_signer_cannot_change_shared_claims(self) -> None:
         def mutating_signer(claims: Dict[str, Any]) -> str:
             claims["injected"] = "by the signer"
-            claims["submods"]["default"]["ear_status"] = "affirming" if claims["submods"]["default"]["ear_status"] != "affirming" else "tampered"
+            claims["submods"]["default"]["ear_status"] = (
+                "affirming" if claims["submods"]["default"]["ear_status"] != "affirming" else "tampered"
+            )
             return "signed"
 
         output = _make_output(status="fail")

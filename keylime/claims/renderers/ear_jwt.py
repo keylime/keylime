@@ -16,8 +16,8 @@ from keylime import keylime_logging
 from keylime.claims.base import (
     KeylimeClaimsError,
     OutputFormat,
-    Renderer,
     RenderedResponse,
+    Renderer,
     Signer,
     VerificationOutput,
 )
@@ -63,8 +63,9 @@ class EarJwtRenderer(Renderer):
             headers={"Vary": "Accept"},
         )
 
-    # Generic infrastructure-error status for the Problem Details path.
-    _PROBLEM_STATUS = 500
+    # Per the plan: the verifier reports an upstream/pipeline failure, so
+    # the Problem Details response is a 502 (Bad Gateway), not a 500.
+    _PROBLEM_STATUS = 502
 
     @staticmethod
     def _problem_details(output: VerificationOutput) -> RenderedResponse:

@@ -3,6 +3,7 @@
 import copy
 import json
 import unittest
+from typing import Any
 
 from keylime.claims.base import (
     EvaluatedEvidence,
@@ -47,7 +48,8 @@ class ContractsTest(unittest.TestCase):
         self.assertIsNone(result.policy_revision)
         self.assertIsNone(result.resolved_sub_policies)
         self.assertIsNone(result.trustworthiness)
-        self.assertIsNone(result.policy_fingerprint)
+        self.assertIsNone(result.trust_anchor_fingerprints)
+        self.assertIsNone(result.evidence_nonce)
 
     def test_frozen_dataclasses_reject_mutation(self) -> None:
         result = _make_result()
@@ -129,6 +131,29 @@ class NormalizeFailureBasicTest(unittest.TestCase):
         self.assertEqual(entries[0].type, "tpm.quote_invalid")
         self.assertIsNone(entries[0].context)
 
+    def test_deeply_nested_json_string_context_dropped(self) -> None:
+        # json.loads recurses over the parsed structure: a nesting depth
+        # beyond the interpreter limit must degrade like an unparsable
+        # context, not abort the whole batch with RecursionError.
+        failure = _make_failure_event(Component.QUOTE_VALIDATION, "quote_validation", {"message": "m"})
+        failure.events[0].context = "[" * 5000 + "]" * 5000
+        with self.assertLogs("keylime.claims.failures", level="WARNING"):
+            entries = normalize_failure(failure)
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].type, "tpm.quote_invalid")
+        self.assertIsNone(entries[0].context)
+
+    def test_deeply_nested_dict_context_dropped_message_kept(self) -> None:
+        deep: Any = {}
+        for _ in range(5000):
+            deep = {"n": deep}
+        failure = _make_failure_event(Component.QUOTE_VALIDATION, "quote_validation", {"message": "m"})
+        failure.events[0].context = {"message": "signature mismatch", "detail": deep}
+        with self.assertLogs("keylime.claims.failures", level="WARNING"):
+            entries = normalize_failure(failure)
+        self.assertEqual(entries[0].message, "signature mismatch")
+        self.assertIsNone(entries[0].context)
+
     def test_non_object_json_context_dropped_with_log(self) -> None:
         # Valid JSON that is not an object carries no message and no
         # structured detail — dropped, and (like every other drop path)
@@ -166,22 +191,43 @@ class NormalizeFailureMappingTest(unittest.TestCase):
                 entries = normalize_failure(failure)
                 self.assertEqual(entries[0].type, expected)
 
-    def test_tee_event_detail_is_preserved(self) -> None:
+    def test_snp_namespace_derived_from_evidence_type(self) -> None:
+        # The generic TEE component claims no flavor by itself; the
+        # namespace comes from the coarse evidence type ("tee-snp" -> snp),
+        # matching the plan's taxonomy.
+        failure = _make_failure_event(Component.TEE, "vcek_fetch", {"message": "could not fetch VCEK"})
+        entries = normalize_failure(failure, "tee-snp")
+        self.assertEqual(entries[0].type, "snp.vcek_fetch")
+
+    def test_tee_namespace_derived_for_future_flavors(self) -> None:
+        # "tee-tdx" -> "tdx" by rule: future flavors need no new mapping.
+        failure = _make_failure_event(Component.TEE, "measurement_mismatch", {"message": "m"})
+        entries = normalize_failure(failure, "tee-tdx")
+        self.assertEqual(entries[0].type, "tdx.measurement_mismatch")
+
+    def test_tee_event_without_evidence_type_claims_no_flavor(self) -> None:
         failure = _make_failure_event(Component.TEE, "vcek_fetch", {"message": "could not fetch VCEK"})
         entries = normalize_failure(failure)
         self.assertEqual(entries[0].type, "tee.vcek_fetch")
 
-    def test_tee_event_without_sub_event_maps_to_unmapped(self) -> None:
+    def test_invalid_tee_evidence_type_claims_no_flavor(self) -> None:
+        # A flavor that fails the identifier guard must never be
+        # substituted into a type field inside the signed token.
+        failure = _make_failure_event(Component.TEE, "vcek_fetch", {"message": "m"})
+        entries = normalize_failure(failure, "tee-Bad Type!")
+        self.assertEqual(entries[0].type, "tee.vcek_fetch")
+
+    def test_snp_event_without_sub_event_maps_to_unmapped(self) -> None:
         # An event id with no sub-event (empty remainder after the
-        # component) must NOT produce a malformed "tee." template type in
+        # component) must NOT produce a malformed "snp." template type in
         # the signed output — it degrades to the closed unmapped type.
         failure = Failure(Component.TEE)
         failure.add_event("", {"message": "m"}, True)
         self.assertEqual(failure.get_event_ids(), ["tee_attestation."])
         with self.assertLogs("keylime.claims.failures", level="WARNING"):
-            entries = normalize_failure(failure)
+            entries = normalize_failure(failure, "tee-snp")
         self.assertEqual(entries[0].type, "eval.unmapped_failure")
-        self.assertNotEqual(entries[0].type, "tee.")
+        self.assertNotEqual(entries[0].type, "snp.")
 
     def test_longest_match_wins(self) -> None:
         # "invalid_pcr_10" matches both "invalid_pcr_*" (specific) and the

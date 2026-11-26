@@ -7,12 +7,17 @@ all ambient values are parameters.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from typing import Any, Dict, List
 
 from keylime import keylime_logging
-from keylime.claims.base import ClaimsTranslator, EvaluatedEvidence, EvaluationResult, VerificationOutput
+from keylime.claims.base import (
+    ClaimsTranslator,
+    EvaluatedEvidence,
+    EvaluationResult,
+    FailureEntry,
+    KeylimeClaimsError,
+    VerificationOutput,
+)
 from keylime.claims.ear import assemble_ear_claims
 from keylime.claims.failures import normalize_failure
 from keylime.claims.registry import translator_registry
@@ -53,19 +58,35 @@ def assemble_evaluation_results(items: List[EvaluatedEvidence]) -> List[Evaluati
     """Turn each evaluated item into an EvaluationResult, in input order.
 
     The per-item half of build_verification_output, and the only place
-    the pipeline branches on evidence type (registry lookup; unknown
-    type raises). Produces the neutral record every output path
-    consumes: translated claims (shared by reference), normalized
-    failures, verdict and policy metadata. Translator exceptions
-    propagate, never swallowed.
+    the pipeline branches on evidence type (registry lookup). Produces
+    the neutral record every output path consumes: translated claims
+    (shared by reference), normalized failures, verdict and policy
+    metadata.
+
+    An unknown evidence type or a translator failure degrades to a
+    per-item error result (eval.unsupported_evidence_type /
+    eval.translation_error) so the other evaluations in the same request
+    complete — the caller cannot catch these, they raise after the
+    hand-off. Caller-contract violations (inconsistent status, malformed
+    inputs) still abort the whole build: those are bugs, not evaluation
+    outcomes.
     """
     results: List[EvaluationResult] = []
     instances: Dict[str, ClaimsTranslator] = {}  # translators are stateless — one per type
     for item in items:
+        _check_status_consistency(item, list(getattr(item.failure, "events", None) or []))
         if item.evidence_type not in instances:
-            instances[item.evidence_type] = translator_registry.get(item.evidence_type)()
-        claims = instances[item.evidence_type].translate(item)
-        failures = normalize_failure(item.failure)
+            try:
+                instances[item.evidence_type] = translator_registry.get(item.evidence_type)()
+            except KeylimeClaimsError as e:
+                results.append(_error_result(item, "eval.unsupported_evidence_type", e))
+                continue
+        try:
+            claims = instances[item.evidence_type].translate(item)
+        except KeylimeClaimsError as e:
+            results.append(_error_result(item, "eval.translation_error", e))
+            continue
+        failures = normalize_failure(item.failure, item.evidence_type)
         results.append(
             EvaluationResult(
                 evaluation_id=item.evaluation_id,
@@ -76,30 +97,34 @@ def assemble_evaluation_results(items: List[EvaluatedEvidence]) -> List[Evaluati
                 failures=failures,
                 policy=item.policy_name,
                 policy_source=item.policy_source,
-                policy_fingerprint=compute_policy_fingerprint(item.policies),
             )
         )
     return results
 
 
-def compute_policy_fingerprint(policies: Any) -> str | None:
-    """Fingerprint the CONTENT of a resolved policy as "sha256:<hex>".
+def _error_result(item: EvaluatedEvidence, failure_type: str, error: KeylimeClaimsError) -> EvaluationResult:
+    return EvaluationResult(
+        evaluation_id=item.evaluation_id,
+        evidence_id=item.evidence_id,
+        evidence_type=item.evidence_type,
+        status="error",  # type: ignore[arg-type]
+        claims={},
+        failures=[FailureEntry(type=failure_type, message=str(error))],
+        policy=item.policy_name,
+        policy_source=item.policy_source,
+    )
 
-    Emitted as keylime_policy_fingerprint, it binds the verdict to what
-    was actually evaluated — the policy NAME only names the source, so
-    identical ids may reflect different policies. Canonical JSON makes
-    semantically identical dicts fingerprint identically; None when no
-    policy content was provided.
+
+def _check_status_consistency(item: EvaluatedEvidence, events: List[Any]) -> None:
+    """Reject a "pass" carrying failure events; warn on "fail" with none.
+
+    The verdict derives from ``status`` alone, so a pass with events
+    would be an affirming token contradicting its own keylime_failures.
     """
-    if not policies:
-        return None
-    try:
-        # No default=str: a non-JSON-serializable value must hit the
-        # warn-and-None path below, not be repr()'d into the canonical
-        # form — repr ordering (e.g. sets) varies per process, which
-        # would silently change the fingerprint across restarts.
-        canonical = json.dumps(policies, sort_keys=True, separators=(",", ":"))
-    except (TypeError, ValueError) as e:
-        logger.warning("Could not serialize the resolved policy for fingerprinting: %s", e)
-        return None
-    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    if item.status == "pass" and events:
+        raise KeylimeClaimsError(
+            f"evaluation {item.evaluation_id!r} has status 'pass' but carries "
+            f"{len(events)} failure event(s); refusing to build an affirming result"
+        )
+    if item.status == "fail" and not events:
+        logger.warning("Evaluation %r has status 'fail' but no failure events", item.evaluation_id)

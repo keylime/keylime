@@ -9,6 +9,7 @@ import unittest
 from typing import Any, Dict, List, Optional
 
 from keylime.claims.base import EvaluatedEvidence
+from keylime.claims.failures import MAX_FAILURE_ENTRIES
 from keylime.claims.translators.tpm import TpmClaimsTranslator
 from keylime.failure import Component, Failure
 from keylime.mba import mba as mba_module
@@ -18,9 +19,7 @@ from keylime.mba import mba as mba_module
 # extraction we exercise, so the real blob is reused for realism.
 _QUOTE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "test-data", "files")
 
-MB_LOG_B64 = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "data", "mb_log.b64"
-)
+MB_LOG_B64 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "mb_log.b64")
 
 # sha256 (TPM_ALG_SHA256) in the TPM algorithm-id space
 _TPM_ALG_SHA256 = 0x000B
@@ -79,9 +78,7 @@ def _build_quote_fixture(pcrs: Optional[Dict[int, bytes]] = None) -> str:
     digests = [pcrs[i] for i in pcr_ids]
     pcrblob = _build_pcrblob(pcr_ids, digests)
     sigblob = _build_sigblob()
-    return "r" + ":".join(
-        base64.b64encode(part).decode() for part in (quoteblob, sigblob, pcrblob)
-    )
+    return "r" + ":".join(base64.b64encode(part).decode() for part in (quoteblob, sigblob, pcrblob))
 
 
 def _load_mb_log() -> str:
@@ -149,9 +146,7 @@ class TpmClaimsTranslatorTest(unittest.TestCase):
 
     def test_ima_violations_from_failure_events(self) -> None:
         failure = Failure(Component.IMA, ["validation", "ima-ng"])
-        failure.add_event(
-            "not_in_allowlist", {"message": "file not in allowlist", "context": "/usr/bin/evil"}, True
-        )
+        failure.add_event("not_in_allowlist", {"message": "file not in allowlist", "context": "/usr/bin/evil"}, True)
         item = _make_item({"ima_measurement_list": _make_ima_list(5)}, failure=failure, status="fail")
         claims = self.translator.translate(item)
         self.assertEqual(len(claims["ima"]["violations"]), 1)
@@ -159,6 +154,25 @@ class TpmClaimsTranslatorTest(unittest.TestCase):
         self.assertEqual(violation["type"], "tpm.ima_violation")
         self.assertEqual(violation["message"], "file not in allowlist")
         self.assertEqual(violation["context"], {"context": "/usr/bin/evil"})
+
+    def test_ima_violations_capped_at_max_failure_entries(self) -> None:
+        failure = Failure(Component.IMA, ["validation", "ima-ng"])
+        for i in range(MAX_FAILURE_ENTRIES + 50):
+            failure.add_event(f"not_in_allowlist_{i}", {"message": f"file {i}"}, True)
+        item = _make_item({"ima_measurement_list": _make_ima_list(5)}, failure=failure, status="fail")
+        claims = self.translator.translate(item)
+        violations = claims["ima"]["violations"]
+        self.assertEqual(len(violations), MAX_FAILURE_ENTRIES)
+        self.assertEqual(violations[-1]["type"], "eval.truncated")
+        self.assertEqual(violations[-1]["context"], {"omitted": 51})
+
+    def test_boot_aggregate_from_legacy_ima_template(self) -> None:
+        digest = "a" * 40  # legacy 'ima' digests are bare sha1 hex
+        first = f"10 {'0' * 40} ima {digest} boot_aggregate"
+        rest = [f"10 {'0' * 40} ima {digest} /bin/somefile_{i}" for i in range(2)]
+        item = _make_item({"ima_measurement_list": "\n".join([first] + rest)})
+        claims = self.translator.translate(item)
+        self.assertEqual(claims["ima"]["boot_aggregate"], digest)
 
     # -- measured boot ------------------------------------------------
 
@@ -340,8 +354,7 @@ class TpmClaimsTranslatorTest(unittest.TestCase):
         failure = Failure(Component.QUOTE_VALIDATION)
         failure.add_event("quote_validation", {"message": "signature mismatch"}, False)
         item = _make_item(
-            {"quote": _build_quote_fixture(), "ima_measurement_list": _make_ima_list(1234),
-             "runtime_policy": "e30="},
+            {"quote": _build_quote_fixture(), "ima_measurement_list": _make_ima_list(1234), "runtime_policy": "e30="},
             failure=failure,
             status="fail",
         )
@@ -356,8 +369,7 @@ class TpmClaimsTranslatorTest(unittest.TestCase):
         failure = Failure(Component.IMA, ["validation", "ima-ng"])
         failure.add_event("not_in_allowlist", {"message": "file not in allowlist"}, True)
         item = _make_item(
-            {"quote": _build_quote_fixture(), "ima_measurement_list": _make_ima_list(10),
-             "runtime_policy": "e30="},
+            {"quote": _build_quote_fixture(), "ima_measurement_list": _make_ima_list(10), "runtime_policy": "e30="},
             failure=failure,
             status="fail",
         )
