@@ -1,5 +1,6 @@
 import argparse
 import copy
+import json
 import os
 import pathlib
 import shutil
@@ -257,6 +258,34 @@ class CreateRuntimePolicy_Test(unittest.TestCase):
         for c in test_cases:
             digests = create_runtime_policy.get_initrds_digests(initrd_dir, {}, c["algo"])
             assertDigestsEqual(digests, c["expected"])
+
+    def test_add_initrds_to_sha256_base_policy(self):
+        parser = create_runtime_policy.get_arg_parser(
+            argparse.ArgumentParser().add_subparsers(), argparse.ArgumentParser(add_help=False)
+        )
+        base_policy = pathlib.Path(HELPER_DIR, "policy-sha256")
+        base_digests = json.loads(base_policy.read_text(encoding="UTF-8"))["digests"]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = pathlib.Path(tmpdir, "policy.json")
+            options = [
+                "--base-policy",
+                str(base_policy),
+                "--ramdisk-dir",
+                os.path.join(self.dirpath, "initrd"),
+                "--output",
+                str(output),
+            ]
+            for algorithm in ([], ["--algo", "sha256"]):
+                with self.subTest(algorithm=algorithm):
+                    policy = create_runtime_policy.create_runtime_policy(parser.parse_args(options + algorithm))
+                    self.assertIsNotNone(policy)
+                    digests = json.loads(output.read_text(encoding="UTF-8"))["digests"]
+                    self.assertEqual(digests, {**base_digests, **INITRD_DIGESTS_SHA256})
+
+    def test_path_digests_reports_invalid_algorithm(self):
+        with self.assertRaises(ValueError):
+            create_runtime_policy.path_digests(os.path.join(HELPER_DIR, "rootfs"), alg="invalid")
 
     def test_process_flat_allowlist(self):
         with tempfile.TemporaryDirectory() as tmpdir:

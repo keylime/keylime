@@ -258,8 +258,8 @@ def path_digests(
                     if fkey not in digests:
                         digests[fkey] = []
                     digests[fkey].append(fdigest)
-            except Exception:
-                logger.debug("Failed to calculate a digest")
+            except OSError as exc:
+                logger.debug("Failed to calculate a digest: %s", exc)
                 continue
 
     return digests
@@ -981,11 +981,12 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
         # from the current source
         if algo:
             if a != algo:
-                if algo == SHA256_OR_SM3:
-                    if a in [algorithms.Hash.SHA256, algorithms.Hash.SM3_256]:
-                        algo = a
-                        logger.debug("Using digest algorithm '%s' obtained from the %s", a, source)
-                        continue
+                if a == SHA256_OR_SM3 and algo in (algorithms.Hash.SHA256, algorithms.Hash.SM3_256):
+                    continue
+                if algo == SHA256_OR_SM3 and a in (algorithms.Hash.SHA256, algorithms.Hash.SM3_256):
+                    algo = a
+                    logger.debug("Using digest algorithm '%s' obtained from the %s", a, source)
+                    continue
 
                 logger.warning(
                     "The digest algorithm in the %s does not match the previously set '%s' algorithm", source, algo
@@ -1011,7 +1012,14 @@ def create_runtime_policy(args: argparse.Namespace) -> Optional[RuntimePolicyTyp
         logger.warning("Aborting operation")
         return None
 
-    if not algo:
+    if algo == SHA256_OR_SM3 and (args.ramdisk_dir or args.rootfs):
+        logger.warning(
+            "Cannot distinguish SHA-256 from SM3-256 by digest length. Using %s for file digests. "
+            "Set --algo to select the file digest algorithm.",
+            DEFAULT_FILE_DIGEST_ALGORITHM,
+        )
+        algo = DEFAULT_FILE_DIGEST_ALGORITHM
+    elif not algo:
         logger.debug("Using default digest algorithm %s", DEFAULT_FILE_DIGEST_ALGORITHM)
         algo = DEFAULT_FILE_DIGEST_ALGORITHM
 
