@@ -76,7 +76,7 @@ Push-model agent
 Keylime Bash installer
 ----------------------
 
-Keylime requires Python 3.6 or greater.
+Keylime requires Python 3.9 or greater.
 
 Installation can be performed via an automated shell script, :code:`installer.sh`. The
 following command line options are available::
@@ -103,7 +103,7 @@ For building those images locally see
 Manual
 ------
 
-Keylime requires Python 3.6 or greater.
+Keylime requires Python 3.9 or greater.
 
 Python-based prerequisites
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -125,7 +125,7 @@ The following Python packages are required:
 * pyasn1-modules>=0.2.1
 * jinja2>=3.0.0
 * gpg (Note: the GPG bindings must match the local GPG version and therefore this package should not be installed via PyPI)
-* typing-extensions>=3.7.4 (only for Python versions < 3.8)
+* typing-extensions>=4.0.1 (only for Python versions < 3.11)
 
 The current list of required packages can be found `here <https://github.com/keylime/keylime/blob/master/requirements.txt>`_.
 
