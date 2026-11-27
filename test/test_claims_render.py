@@ -9,12 +9,20 @@ from keylime.claims import (
     EvaluationResult,
     KeylimeClaimsError,
     OutputFormat,
+    RenderedResponse,
     VerificationOutput,
     render_response,
 )
 from keylime.claims.ear import EAR_PROFILE
+from keylime.claims.renderers.issuance import issue_token
 
 _SENTINEL_TOKEN = "sentinel.signed.token"
+
+
+def _body_dict(response: RenderedResponse) -> Dict[str, Any]:
+    """Response body as a dict — the JSON:API/problem-details paths only."""
+    assert isinstance(response.body, dict)
+    return response.body
 
 
 def _sentinel_signer(_claims: Dict[str, Any]) -> str:
@@ -90,7 +98,7 @@ class EarJwtRendererTest(unittest.TestCase):
         # An infra error must never derive as 2xx; the plan pins 502 (the
         # verifier reports an upstream/pipeline failure).
         self.assertEqual(response.status, 502)
-        self.assertEqual(response.body["status"], 502)
+        self.assertEqual(_body_dict(response)["status"], 502)
 
     def test_missing_signer_with_claims_raises(self) -> None:
         with self.assertRaises(KeylimeClaimsError):
@@ -108,7 +116,7 @@ class JsonApiRendererTest(unittest.TestCase):
         output = _make_output()
         response = render_response(output, output_format=OutputFormat.JSONAPI, signer=_sentinel_signer)
         self.assertEqual(response.content_type, "application/vnd.api+json")
-        self.assertEqual(response.body["data"]["attributes"]["attestation_result"], _SENTINEL_TOKEN)
+        self.assertEqual(_body_dict(response)["data"]["attributes"]["attestation_result"], _SENTINEL_TOKEN)
         self.assertEqual(output.ear_token, _SENTINEL_TOKEN)
         self.assertIsNone(response.status)
 
@@ -116,7 +124,7 @@ class JsonApiRendererTest(unittest.TestCase):
         response = render_response(
             _make_output(status="error"), output_format=OutputFormat.JSONAPI, signer=_sentinel_signer
         )
-        self.assertIsNone(response.body["data"]["attributes"]["attestation_result"])
+        self.assertIsNone(_body_dict(response)["data"]["attributes"]["attestation_result"])
         # Per the plan, JSON:API evaluation-level errors are HTTP 200: the
         # request is valid, the verifier cannot evaluate (some of) it.
         # None derives the 2xx from the envelope body.
@@ -130,7 +138,7 @@ class JsonApiRendererTest(unittest.TestCase):
         # No claims were assembled, so no signer is needed (symmetric
         # with the raw-JWT renderer's error path).
         response = render_response(_make_output(status="error"), output_format=OutputFormat.JSONAPI, signer=None)
-        self.assertIsNone(response.body["data"]["attributes"]["attestation_result"])
+        self.assertIsNone(_body_dict(response)["data"]["attributes"]["attestation_result"])
 
 
 class IdempotentIssuanceTest(unittest.TestCase):
@@ -159,7 +167,7 @@ class IdempotentIssuanceTest(unittest.TestCase):
         ear = render_response(output, output_format=OutputFormat.EAR_JWT, signer=counting_signer)
         api = render_response(output, output_format=OutputFormat.JSONAPI, signer=counting_signer)
         self.assertEqual(len(calls), 1)
-        self.assertEqual(api.body["data"]["attributes"]["attestation_result"], ear.body)
+        self.assertEqual(_body_dict(api)["data"]["attributes"]["attestation_result"], ear.body)
 
 
 class HeadersTest(unittest.TestCase):
@@ -227,10 +235,39 @@ class MutationIsolationTest(unittest.TestCase):
             )
             return "signed"
 
-        output = _make_output(status="fail")
-        snapshot = copy.deepcopy(output.ear_claims)
-        render_response(output, output_format=OutputFormat.JSONAPI, signer=mutating_signer)
-        self.assertEqual(output.ear_claims, snapshot)  # deep copy isolated the signer
+        for output_format in (OutputFormat.EAR_JWT, OutputFormat.JSONAPI):
+            with self.subTest(output_format=output_format):
+                output = _make_output(status="fail")
+                snapshot = copy.deepcopy(output.ear_claims)
+                render_response(output, output_format=output_format, signer=mutating_signer)
+                self.assertEqual(output.ear_claims, snapshot)  # deep copy isolated the signer
+
+    def test_bad_signer_returns_rejected_and_not_cached(self) -> None:
+        # The token-type check is an issuance invariant of BOTH renderers:
+        # a None/empty/non-string signer return must raise and must never
+        # be cached into ear_token (a cached None is indistinguishable
+        # from "not yet issued").
+        for bad_return in (None, "", 123):
+            for output_format in (OutputFormat.EAR_JWT, OutputFormat.JSONAPI):
+                with self.subTest(bad_return=bad_return, output_format=output_format):
+                    output = _make_output()
+
+                    def bad_signer(_claims: Dict[str, Any], _r=bad_return) -> Any:
+                        return _r
+
+                    with self.assertRaises(KeylimeClaimsError):
+                        render_response(output, output_format=output_format, signer=bad_signer)
+                    self.assertIsNone(output.ear_token)
+
+    def test_issue_token_rejects_missing_claims(self) -> None:
+        # The renderers guard ear_claims before calling, so this branch
+        # is defensive — but the helper must not trust its callers: an
+        # infra-error output (ear_claims None) must never reach signing.
+        output = _make_output(status="error")
+        with self.assertRaises(KeylimeClaimsError) as ctx:
+            issue_token(output, signer=_sentinel_signer, format_name="EAR_JWT")
+        self.assertIn("requires assembled EAR claims", str(ctx.exception))
+        self.assertIsNone(output.ear_token)  # nothing was issued or cached
 
 
 if __name__ == "__main__":

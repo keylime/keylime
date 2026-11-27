@@ -10,11 +10,7 @@ there is no token to return — currently a minimal stub, see
 
 from __future__ import annotations
 
-import copy
-
-from keylime import keylime_logging
 from keylime.claims.base import (
-    KeylimeClaimsError,
     OutputFormat,
     RenderedResponse,
     Renderer,
@@ -23,8 +19,11 @@ from keylime.claims.base import (
 )
 from keylime.claims.ear import EAR_PROFILE
 from keylime.claims.registry import register_output_format
+from keylime.claims.renderers.issuance import issue_token
 
-logger = keylime_logging.init_logging("claims.renderers.ear_jwt")
+# Per the plan: the verifier reports an upstream/pipeline failure, so
+# the Problem Details response is a 502 (Bad Gateway), not a 500.
+_PROBLEM_STATUS = 502
 
 
 @register_output_format
@@ -35,37 +34,12 @@ class EarJwtRenderer(Renderer):
         if output.ear_claims is None:
             return self._problem_details(output)  # infra error -> no token
 
-        # Issuance invariants shared with the JSON:API renderer — keep
-        # in lockstep: reuse-before-sign, deep copy before the signer,
-        # signer failures as KeylimeClaimsError, write-once ear_token.
-        if output.ear_token is not None:
-            logger.info("EAR token reused: jti=%s", output.ear_claims["jti"])
-            token = output.ear_token
-        else:
-            if signer is None:
-                raise KeylimeClaimsError("EAR_JWT output requires a signer; none configured")
-            try:
-                token = signer(copy.deepcopy(output.ear_claims))
-            except KeylimeClaimsError:
-                raise
-            except Exception as e:
-                raise KeylimeClaimsError("EAR token signing failed") from e
-            if not isinstance(token, str) or not token:
-                # A None/empty return must not be cached as the token
-                # (it would be indistinguishable from the infra-error
-                # path in the JSON:API body).
-                raise KeylimeClaimsError("the signer did not return a token string")
-            output.ear_token = token  # write-once (audit)
-            logger.info("EAR token issued: jti=%s", output.ear_claims["jti"])
+        token = issue_token(output, signer, format_name=self.format.name)
         return RenderedResponse(
             content_type=f'{self.format.value}; eat_profile="{EAR_PROFILE}"',
             body=token,
             headers={"Vary": "Accept"},
         )
-
-    # Per the plan: the verifier reports an upstream/pipeline failure, so
-    # the Problem Details response is a 502 (Bad Gateway), not a 500.
-    _PROBLEM_STATUS = 502
 
     @staticmethod
     def _problem_details(output: VerificationOutput) -> RenderedResponse:
@@ -80,7 +54,7 @@ class EarJwtRenderer(Renderer):
             # the HTTP hint — the body alone cannot tell success from
             # failure, so the response status must never be left to derive
             # a 2xx for an infra error.
-            body={"title": "Attestation evaluation error", "status": EarJwtRenderer._PROBLEM_STATUS},
+            body={"title": "Attestation evaluation error", "status": _PROBLEM_STATUS},
             headers={"Vary": "Accept"},
-            status=EarJwtRenderer._PROBLEM_STATUS,
+            status=_PROBLEM_STATUS,
         )

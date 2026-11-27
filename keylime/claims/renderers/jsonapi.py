@@ -11,13 +11,10 @@ end-to-end (and ``body`` never violates its type).
 
 from __future__ import annotations
 
-import copy
 from typing import Any, Dict, Optional, Sequence
 
-from keylime import keylime_logging
 from keylime.claims.base import (
     EvaluationResult,
-    KeylimeClaimsError,
     OutputFormat,
     RenderedResponse,
     Renderer,
@@ -25,8 +22,7 @@ from keylime.claims.base import (
     VerificationOutput,
 )
 from keylime.claims.registry import register_output_format
-
-logger = keylime_logging.init_logging("claims.renderers.jsonapi")
+from keylime.claims.renderers.issuance import issue_token
 
 
 @register_output_format
@@ -36,29 +32,7 @@ class JsonApiRenderer(Renderer):
     def render(self, output: VerificationOutput, signer: Signer | None) -> RenderedResponse:
         token = None
         if output.ear_claims is not None:  # infra error -> no token, null result
-            # Issuance invariants shared with the raw-JWT renderer — keep
-            # in lockstep: reuse-before-sign, deep copy before the signer,
-            # signer failures as KeylimeClaimsError, write-once ear_token.
-            if output.ear_token is not None:
-                logger.info("EAR token reused: jti=%s", output.ear_claims["jti"])
-                token = output.ear_token
-            else:
-                if signer is None:
-                    raise KeylimeClaimsError(
-                        "JSON:API output requires a signer when claims were assembled; none configured"
-                    )
-                try:
-                    token = signer(copy.deepcopy(output.ear_claims))
-                except KeylimeClaimsError:
-                    raise
-                except Exception as e:
-                    raise KeylimeClaimsError("EAR token signing failed") from e
-                if not isinstance(token, str) or not token:
-                    # A None/empty return would be indistinguishable
-                    # from the infra-error path (null attestation_result).
-                    raise KeylimeClaimsError("the signer did not return a token string")
-                output.ear_token = token  # write-once (audit)
-                logger.info("EAR token issued: jti=%s", output.ear_claims["jti"])
+            token = issue_token(output, signer, format_name=self.format.name)
         body = self._envelope(output.results, attestation_result=token)
         # No explicit status on the evaluation-error path either: per the
         # plan, JSON:API evaluation-level errors are HTTP 200 with

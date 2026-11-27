@@ -38,9 +38,7 @@ class _Registry(Generic[K, V]):
         except KeyError:
             known = ", ".join(repr(k) for k in self._entries)
             suffix = f" (known: {known})" if known else ""
-            raise KeylimeClaimsError(
-                f"No registration for key {key!r} in the {self._name} registry{suffix}"
-            ) from None
+            raise KeylimeClaimsError(f"No registration for key {key!r} in the {self._name} registry{suffix}") from None
 
     def keys(self) -> List[K]:
         return list(self._entries)

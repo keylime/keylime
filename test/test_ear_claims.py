@@ -21,6 +21,13 @@ except ImportError:  # pragma: no cover
 _VALID_NONCE = base64.b64encode(b"x" * 32).decode()
 
 
+def _assembled(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+    """Happy-path assemble_ear_claims — never None by construction."""
+    claims = assemble_ear_claims(*args, **kwargs)
+    assert claims is not None
+    return claims
+
+
 def _make_result(
     evaluation_id: str = "default",
     status: str = "pass",
@@ -42,35 +49,35 @@ def _make_result(
 
 class EarClaimsStructureTest(unittest.TestCase):
     def test_eat_profile_constant(self) -> None:
-        claims = assemble_ear_claims([_make_result()], nonce=_VALID_NONCE, iss="https://verifier.example.com")
+        claims = _assembled([_make_result()], nonce=_VALID_NONCE, iss="https://verifier.example.com")
         # Pinned to the literal wire value (design rev 0.11; a profile
         # mismatch returns HTTP 406): a bump must be a visible test change.
         self.assertEqual(claims["eat_profile"], "tag:ietf.org,2026:rats/ear#04")
         self.assertEqual(claims["eat_profile"], EAR_PROFILE)
 
     def test_verifier_id_contains_developer_and_build(self) -> None:
-        claims = assemble_ear_claims([_make_result()], nonce=_VALID_NONCE, iss="https://v", verifier_build="1.2.3")
+        claims = _assembled([_make_result()], nonce=_VALID_NONCE, iss="https://v", verifier_build="1.2.3")
         self.assertEqual(claims["ear_verifier_id"]["developer"], DEFAULT_VERIFIER_DEVELOPER)
         self.assertEqual(claims["ear_verifier_id"]["build"], "1.2.3")
 
     def test_verifier_build_defaults_to_installed_version_or_unknown(self) -> None:
-        claims = assemble_ear_claims([_make_result()], nonce=_VALID_NONCE, iss="https://v")
+        claims = _assembled([_make_result()], nonce=_VALID_NONCE, iss="https://v")
         build = claims["ear_verifier_id"]["build"]
         self.assertTrue(isinstance(build, str) and build)
 
     def test_default_build_with_missing_package(self) -> None:
         with mock.patch("keylime.claims.ear._package_version", side_effect=PackageNotFoundError):
-            claims = assemble_ear_claims([_make_result()], nonce=_VALID_NONCE, iss="https://v")
+            claims = _assembled([_make_result()], nonce=_VALID_NONCE, iss="https://v")
         self.assertEqual(claims["ear_verifier_id"]["build"], "unknown")
 
     def test_one_submod_per_result(self) -> None:
         results = [_make_result("default"), _make_result("second")]
-        claims = assemble_ear_claims(results, nonce=_VALID_NONCE, iss="https://v")
+        claims = _assembled(results, nonce=_VALID_NONCE, iss="https://v")
         self.assertEqual(sorted(claims["submods"].keys()), ["default", "second"])
 
     def test_submod_contents(self) -> None:
         result = _make_result(failures=[FailureEntry(type="tpm.ima_violation", message="m")])
-        claims = assemble_ear_claims([result], nonce=_VALID_NONCE, iss="https://v")
+        claims = _assembled([result], nonce=_VALID_NONCE, iss="https://v")
         submod = claims["submods"]["default"]
         self.assertEqual(submod["ear_status"], "affirming")
         self.assertEqual(submod["ear_appraisal_policy_ids"], ["tpm:inline"])
@@ -79,7 +86,7 @@ class EarClaimsStructureTest(unittest.TestCase):
         self.assertEqual(submod["keylime_policy_source"], "inline")
         self.assertNotIn("keylime_policy_fingerprint", submod)
         # Present but null until the computation lands.
-        self.assertIsNone(submod["ear_trustworthiness_vector"])
+        self.assertNotIn("ear_trustworthiness_vector", submod)
         self.assertIsNone(submod["keylime_trust_anchor_fingerprints"])
         self.assertIsNone(submod["keylime_evidence_nonce"])
         self.assertEqual(
@@ -119,6 +126,7 @@ class EarClaimsStructureTest(unittest.TestCase):
                     if "error" in combo:
                         self.assertIsNone(claims)
                         continue
+                    assert claims is not None
                     expected = "affirming" if all(s == "pass" for s in combo) else "contraindicated"
                     self.assertEqual(claims["ear_status"], expected)
                     for i, s in enumerate(combo):
@@ -137,7 +145,7 @@ class EarClaimsStructureTest(unittest.TestCase):
 
         entries = normalize_failure(failure)
         result = _make_result(status="fail", failures=entries)
-        claims = assemble_ear_claims([result], nonce=_VALID_NONCE, iss="https://v")
+        claims = _assembled([result], nonce=_VALID_NONCE, iss="https://v")
         self.assertIsNotNone(claims)
         self.assertEqual(claims["ear_status"], "contraindicated")
         self.assertEqual(claims["submods"]["default"]["keylime_failures"][0]["type"], "tpm.ima_violation")
@@ -148,7 +156,7 @@ class EarClaimsStructureTest(unittest.TestCase):
             failure.add_event("not_in_allowlist", {"message": "m"}, True)
 
         result = _make_result(status="fail", failures=normalize_failure(failure))
-        claims = assemble_ear_claims([result], nonce=_VALID_NONCE, iss="https://v")
+        claims = _assembled([result], nonce=_VALID_NONCE, iss="https://v")
         emitted = claims["submods"]["default"]["keylime_failures"]
         self.assertEqual(emitted[-1]["type"], "eval.truncated")
 
@@ -156,7 +164,7 @@ class EarClaimsStructureTest(unittest.TestCase):
 class EarClaimsNonceTest(unittest.TestCase):
     def test_nonce_round_trips_verbatim(self) -> None:
         nonce = base64.urlsafe_b64encode(b"y" * 24).decode().rstrip("=")
-        claims = assemble_ear_claims([_make_result()], nonce=nonce, iss="https://v")
+        claims = _assembled([_make_result()], nonce=nonce, iss="https://v")
         self.assertEqual(claims["eat_nonce"], nonce)
 
     def test_nonce_length_boundaries(self) -> None:
@@ -164,7 +172,7 @@ class EarClaimsNonceTest(unittest.TestCase):
             with self.subTest(size=size):
                 nonce = base64.urlsafe_b64encode(b"z" * size).decode().rstrip("=")
                 if ok:
-                    claims = assemble_ear_claims([_make_result()], nonce=nonce, iss="https://v")
+                    claims = _assembled([_make_result()], nonce=nonce, iss="https://v")
                     self.assertEqual(claims["eat_nonce"], nonce)
                 else:
                     with self.assertRaises(KeylimeClaimsError):
@@ -177,14 +185,13 @@ class EarClaimsNonceTest(unittest.TestCase):
                     assemble_ear_claims([_make_result()], nonce=nonce, iss="https://v")
 
     def test_standard_base64_alphabet_accepted(self) -> None:
-        # draft-ietf-rats-ear-04, the advertised profile, specifies base64:
-        # a nonce in the standard alphabet (+ and /) is accepted and echoed
-        # unchanged — the relying party compares eat_nonce byte-for-byte
-        # against the challenge it sent.
+        # A nonce in the standard alphabet (+ and /) is accepted; eat_nonce
+        # carries the canonical unpadded base64url form of the same bytes —
+        # the relying party compares decoded bytes against its challenge.
         standard = base64.b64encode(b"\xfb\xff\xef\xbe" * 8).decode()
         self.assertTrue("+" in standard or "/" in standard)
-        claims = assemble_ear_claims([_make_result()], nonce=standard, iss="https://v")
-        self.assertEqual(claims["eat_nonce"], standard)
+        claims = _assembled([_make_result()], nonce=standard, iss="https://v")
+        self.assertEqual(claims["eat_nonce"], base64.urlsafe_b64encode(b"\xfb\xff\xef\xbe" * 8).decode().rstrip("="))
 
     def test_non_canonical_base64_lengths_rejected(self) -> None:
         # RFC 4648: a base64 length of 4k+1 characters cannot decode.
@@ -200,17 +207,54 @@ class EarClaimsNonceTest(unittest.TestCase):
             assemble_ear_claims([_make_result()], nonce="eHg" + "A" * 20 + "==", iss="https://v")
 
     def test_padded_base64_nonce_accepted(self) -> None:
-        # The advertised profile (draft-ietf-rats-ear-04) specifies base64,
-        # which pads; the padded form is accepted and echoed unchanged.
+        # Padded standard base64 is accepted; eat_nonce carries the
+        # canonical unpadded base64url form of the same bytes.
         nonce = base64.b64encode(b"p" * 17).decode()  # 17 bytes -> padded form
-        claims = assemble_ear_claims([_make_result()], nonce=nonce, iss="https://v")
-        self.assertEqual(claims["eat_nonce"], nonce)
+        claims = _assembled([_make_result()], nonce=nonce, iss="https://v")
+        self.assertEqual(claims["eat_nonce"], base64.urlsafe_b64encode(b"p" * 17).decode().rstrip("="))
 
     def test_draft04_example_nonce_accepted(self) -> None:
-        # The 16-byte example from the review: standard padded base64.
+        # The 16-byte example from the review: standard padded base64,
+        # echoed in the canonical unpadded base64url form.
         nonce = "AAECAwQFBgcICQoLDA0ODw=="
-        claims = assemble_ear_claims([_make_result()], nonce=nonce, iss="https://v")
-        self.assertEqual(claims["eat_nonce"], nonce)
+        claims = _assembled([_make_result()], nonce=nonce, iss="https://v")
+        self.assertEqual(claims["eat_nonce"], "AAECAwQFBgcICQoLDA0ODw")
+
+    def test_all_four_spellings_converge_on_canonical_eat_nonce(self) -> None:
+        # 17 bytes: length not a multiple of 4, so padded and unpadded
+        # spellings differ and the final quad carries trailing bits.
+        raw = b"\xfb\xff\xef\xbe" * 4 + b"\x01"
+        canonical = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+        spellings = {
+            "unpadded urlsafe": canonical,
+            "padded urlsafe": base64.urlsafe_b64encode(raw).decode(),
+            "unpadded standard": base64.b64encode(raw).decode().rstrip("="),
+            "padded standard": base64.b64encode(raw).decode(),
+        }
+        for label, nonce in spellings.items():
+            with self.subTest(spelling=label):
+                claims = _assembled([_make_result()], nonce=nonce, iss="https://v")
+                self.assertEqual(claims["eat_nonce"], canonical)
+
+    def test_mixed_alphabet_nonce_rejected(self) -> None:
+        # A string mixing + or / with - or _ belongs to neither alphabet.
+        for bad in ["A" * 22 + "+-", "A" * 22 + "/_", "AB+CD-EF" + "A" * 20]:
+            with self.subTest(nonce=bad):
+                with self.assertRaises(KeylimeClaimsError):
+                    assemble_ear_claims([_make_result()], nonce=bad, iss="https://v")
+
+    def test_urlsafe_non_canonical_trailing_bits_rejected(self) -> None:
+        # 17 bytes -> the last character carries 2 data bits plus 4
+        # trailing bits; bumping it flips a trailing bit, so the string
+        # decodes to the same bytes but re-encodes differently.
+        canonical = base64.urlsafe_b64encode(b"q" * 17).decode().rstrip("=")
+        bad = canonical[:-1] + chr(ord(canonical[-1]) + 1)
+        self.assertNotEqual(canonical, bad)
+        with self.assertRaises(KeylimeClaimsError) as ctx:
+            assemble_ear_claims([_make_result()], nonce=bad, iss="https://v")
+        # Distinct, actionable message so the HTTP layer can map it to 400.
+        self.assertIn("canonically", str(ctx.exception))
+        self.assertIn("re-encode", str(ctx.exception))
 
     def test_input_guards_fire_even_with_error_results(self) -> None:
         # Input errors are reported even when an evaluation also errored.
@@ -220,13 +264,13 @@ class EarClaimsNonceTest(unittest.TestCase):
 
 class EarClaimsIdentityTest(unittest.TestCase):
     def test_sequential_assemblies_differ_in_jti(self) -> None:
-        claims_a = assemble_ear_claims([_make_result()], nonce=_VALID_NONCE, iss="https://v")
-        claims_b = assemble_ear_claims([_make_result()], nonce=_VALID_NONCE, iss="https://v")
+        claims_a = _assembled([_make_result()], nonce=_VALID_NONCE, iss="https://v")
+        claims_b = _assembled([_make_result()], nonce=_VALID_NONCE, iss="https://v")
         self.assertNotEqual(claims_a["jti"], claims_b["jti"])
 
     def test_explicit_jti_respected(self) -> None:
         jti = str(uuid.uuid4())
-        claims = assemble_ear_claims([_make_result()], nonce=_VALID_NONCE, iss="https://v", jti=jti)
+        claims = _assembled([_make_result()], nonce=_VALID_NONCE, iss="https://v", jti=jti)
         self.assertEqual(claims["jti"], jti)
 
     def test_non_uuid_jti_rejected(self) -> None:
@@ -236,21 +280,16 @@ class EarClaimsIdentityTest(unittest.TestCase):
 
 class EarClaimsTemporalTest(unittest.TestCase):
     def test_temporal_fields_with_injected_iat(self) -> None:
-        claims = assemble_ear_claims([_make_result()], nonce=_VALID_NONCE, iss="https://v", iat=1726000000, ttl=300)
+        claims = _assembled([_make_result()], nonce=_VALID_NONCE, iss="https://v", iat=1726000000, ttl=300)
         self.assertEqual(claims["iat"], 1726000000)
         self.assertEqual(claims["nbf"], 1726000000)
         self.assertEqual(claims["exp"], 1726000300)
 
     def test_iat_is_always_int(self) -> None:
-        claims = assemble_ear_claims([_make_result()], nonce=_VALID_NONCE, iss="https://v")
+        claims = _assembled([_make_result()], nonce=_VALID_NONCE, iss="https://v")
         self.assertIsInstance(claims["iat"], int)
         self.assertIsInstance(claims["exp"], int)
         self.assertIsInstance(claims["nbf"], int)
-
-    def test_float_iat_truncated(self) -> None:
-        claims = assemble_ear_claims([_make_result()], nonce=_VALID_NONCE, iss="https://v", iat=1726000000.75)
-        self.assertEqual(claims["iat"], 1726000000)
-        self.assertIsInstance(claims["iat"], int)
 
     def test_non_positive_ttl_rejected(self) -> None:
         for ttl in [0, -1]:
@@ -260,8 +299,9 @@ class EarClaimsTemporalTest(unittest.TestCase):
 
     def test_non_numeric_iat_rejected(self) -> None:
         # Same single-error-channel discipline as ttl: a bad iat raises
-        # KeylimeClaimsError, never a raw ValueError.
-        for bad_iat in ["soon", "1726000000.5abc", [1]]:
+        # KeylimeClaimsError, never a raw ValueError. A float is also a
+        # caller slip — rejected loudly, never silently truncated.
+        for bad_iat in ["soon", "1726000000.5abc", 1726000000.5, [1]]:
             with self.subTest(bad_iat=bad_iat):
                 with self.assertRaises(KeylimeClaimsError):
                     assemble_ear_claims([_make_result()], nonce=_VALID_NONCE, iss="https://v", iat=bad_iat)

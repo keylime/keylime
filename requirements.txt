@@ -20,7 +20,7 @@ pyasn1-modules>=0.2.5 # BSD
 jinja2>=3.0.0 # BSD
 # Keylime requires also gpg (LGPLv2+).
 # Those bindings must match the local GPG version and therefore this package is not installed via PyPI.
-# typing-extensions is required for TypedDict and Literal on Python < 3.8
+# typing-extensions is required for TypedDict and Literal on Python < 3.9
 # as well as NotRequired on Python < 3.11
 typing-extensions>=4.0.1 ; python_version < '3.11' #PSF-2.0
 jsonschema>=2.6.0 # MIT

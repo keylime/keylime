@@ -16,10 +16,13 @@ import uuid
 from collections import Counter
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _package_version
-from typing import Any, Dict, List, Optional, get_args
+from typing import Any, Dict, List, Optional, Tuple, get_args
 
 from keylime.claims.base import EvaluationResult, KeylimeClaimsError, PolicySource, Status
 
+# Profile tag pinned to ear 0.6.0 (the crate trustee consumes); the claim
+# spellings and the eat_nonce output form follow draft-ietf-rats-ear-06,
+# the current draft generation.
 EAR_PROFILE = "tag:ietf.org,2026:rats/ear#04"
 DEFAULT_VERIFIER_DEVELOPER = "https://keylime.dev"
 
@@ -29,10 +32,11 @@ _ALLOWED_POLICY_SOURCES = frozenset(get_args(PolicySource))
 _NONCE_MIN_BYTES = 16
 _NONCE_MAX_BYTES = 64
 
-# Standard base64 alphabet (RFC 4648 section 4) with optional padding:
-# draft-ietf-rats-ear-04, the profile EAR_PROFILE advertises, specifies
-# base64 for eat_nonce.
+# Either base64 alphabet (RFC 4648 sections 4 and 5) with optional
+# padding: relying parties mint both (trustee's KBS uses padded standard
+# base64, RFC 9711 clients use unpadded base64url).
 _BASE64_RE = re.compile(r"[A-Za-z0-9+/]*={0,2}")
+_BASE64URL_RE = re.compile(r"[A-Za-z0-9_-]*={0,2}")
 
 
 def assemble_ear_claims(
@@ -51,16 +55,13 @@ def assemble_ear_claims(
     Worst-case aggregation: all pass -> "affirming"; any fail, no error
     -> "contraindicated"; any error -> None (no token is issued).
     """
-    ttl = _validate_inputs(results, nonce, ttl, jti, iat=iat, iss=iss)
+    ttl, canonical_nonce = _validate_inputs(results, nonce, ttl, jti, iat=iat, iss=iss)
 
     if any(r.status == "error" for r in results):
         return None
 
     if iat is None:
         iat = int(time.time())
-    else:
-        # Truncate toward zero (EAT forbids fractional times).
-        iat = int(iat)
 
     if jti is None:
         jti = str(uuid.uuid4())
@@ -83,7 +84,7 @@ def assemble_ear_claims(
 
     submods: Dict[str, Any] = {}
     for r in results:
-        submods[r.evaluation_id] = {
+        submod: Dict[str, Any] = {
             # Unreachable for "error" (short-circuits above); defensive.
             "ear_status": "affirming" if r.status == "pass" else "contraindicated",
             "ear_appraisal_policy_ids": [r.policy],
@@ -92,12 +93,15 @@ def assemble_ear_claims(
             "keylime_evidence_type": r.evidence_type,
             "keylime_policy_source": r.policy_source,
             "keylime_failures": [_entry_to_dict(f) for f in r.failures],
-            # Present but null until the computation lands, so no
-            # half-finished claim ever gets signed.
-            "ear_trustworthiness_vector": r.trustworthiness,
             "keylime_trust_anchor_fingerprints": r.trust_anchor_fingerprints,
             "keylime_evidence_nonce": r.evidence_nonce,
         }
+        # Omitted — not null — while uncomputed: the draft makes the vector
+        # conditional, and typed consumers (ear 0.6.0) reject a JSON null
+        # for this registered claim name.
+        if r.trustworthiness is not None:
+            submod["ear_trustworthiness_vector"] = r.trustworthiness
+        submods[r.evaluation_id] = submod
 
     return {
         "eat_profile": EAR_PROFILE,
@@ -106,7 +110,7 @@ def assemble_ear_claims(
         "nbf": iat,
         "exp": iat + ttl,
         "jti": jti,
-        "eat_nonce": nonce,
+        "eat_nonce": canonical_nonce,
         "ear_verifier_id": {"developer": verifier_developer, "build": verifier_build},
         "ear_status": ear_status,
         "submods": submods,
@@ -120,10 +124,10 @@ def _validate_inputs(
     jti: Optional[str],
     iat: Optional[int] = None,
     iss: Optional[str] = None,
-) -> int:
+) -> Tuple[int, str]:
     """Run the input guards in order (before the error short-circuit, so
     input errors surface even when an evaluation also errored); return
-    the coerced ttl."""
+    the coerced ttl and the canonical nonce encoding."""
     if not results:
         raise KeylimeClaimsError("cannot assemble EAR claims for an empty result list")
 
@@ -143,13 +147,20 @@ def _validate_inputs(
                 f"result {eid!r} has invalid policy_source {r.policy_source!r}; "
                 f"expected one of {sorted(_ALLOWED_POLICY_SOURCES)}"
             )
+        # policy lands in ear_appraisal_policy_ids inside the signed token:
+        # typed consumers reject a null and an unbounded string bloats it —
+        # bound it like every other client-influenced field.
+        if not isinstance(r.policy, str) or not r.policy or len(r.policy) > 256:
+            raise KeylimeClaimsError(
+                f"result {eid!r} policy must be a non-empty string of at most 256 characters, got {r.policy!r}"
+            )
 
     ids = [r.evaluation_id for r in results]
     duplicates = {evaluation_id for evaluation_id, count in Counter(ids).items() if count > 1}
     if duplicates:
         raise KeylimeClaimsError(f"duplicate evaluation ids in results: {sorted(duplicates)}")
 
-    _validate_nonce(nonce)
+    canonical_nonce = _validate_nonce(nonce)
 
     if not isinstance(iss, str) or not iss:
         raise KeylimeClaimsError(f"iss must be a non-empty string, got {iss!r}")
@@ -164,14 +175,10 @@ def _validate_inputs(
         raise KeylimeClaimsError(f"ttl must be a positive integer, got {ttl!r}")
 
     if iat is not None:
-        # Reject bools (int subclasses that would become 1970 timestamps)
-        # and numeric strings; only genuine numbers are truncated later.
-        if isinstance(iat, bool) or not isinstance(iat, (int, float)):
+        # Reject bools (int subclasses that would become 1970 timestamps),
+        # floats and numeric strings — same loud-failure discipline as ttl.
+        if isinstance(iat, bool) or not isinstance(iat, int):
             raise KeylimeClaimsError(f"iat must be an integer, got {iat!r}")
-        try:
-            int(iat)
-        except (TypeError, ValueError, ArithmeticError) as e:
-            raise KeylimeClaimsError(f"iat must be an integer, got {iat!r}") from e
 
     if jti is not None:
         try:
@@ -179,32 +186,44 @@ def _validate_inputs(
         except (ValueError, AttributeError, TypeError) as e:
             raise KeylimeClaimsError(f"jti must be a UUID, got {jti!r}") from e
 
-    return ttl_int
+    return ttl_int, canonical_nonce
 
 
-def _validate_nonce(nonce: str) -> None:
-    """Enforce the nonce contract: base64, 16-64 decoded bytes.
+def _validate_nonce(nonce: str) -> str:
+    """Enforce the nonce contract; return the canonical encoding.
 
-    The alphabet is checked by regex first (standard base64, not the
-    URL-safe variant: the advertised profile, draft-ietf-rats-ear-04,
-    specifies base64), then the string is decoded strictly, which also
-    rejects non-canonical lengths and malformed padding. The accepted
-    string is echoed into eat_nonce unchanged, so the relying party can
-    compare it byte-for-byte against the challenge it sent.
+    Either base64 alphabet is accepted (relying parties mint both:
+    trustee's KBS uses padded standard base64, RFC 9711 clients use
+    unpadded base64url). The string is decoded strictly — rejecting
+    non-canonical lengths, malformed padding and non-canonical trailing
+    bits — and length-checked in decoded bytes. eat_nonce carries the
+    canonical unpadded base64url re-encoding, the form mandated by
+    draft-ietf-rats-ear-06 section 3 and decoded by typed EAR consumers
+    (ear 0.6.0); a relying party compares decoded bytes, not the
+    submitted string.
     """
     if not isinstance(nonce, str) or not nonce:
-        raise KeylimeClaimsError("nonce must be a non-empty base64 string")
-    if _BASE64_RE.fullmatch(nonce) is None:
-        raise KeylimeClaimsError("nonce is not valid base64")
+        raise KeylimeClaimsError("nonce must be a non-empty base64 or base64url string")
+    if _BASE64_RE.fullmatch(nonce) is None and _BASE64URL_RE.fullmatch(nonce) is None:
+        raise KeylimeClaimsError("nonce is not valid base64 or base64url")
+    urlsafe = "-" in nonce or "_" in nonce
     padded = nonce + "=" * (-len(nonce) % 4)
     try:
-        decoded = base64.b64decode(padded, validate=True)
+        decoded = base64.b64decode(padded, altchars=b"-_" if urlsafe else None, validate=True)
     except (binascii.Error, ValueError) as e:
-        raise KeylimeClaimsError("nonce is not valid base64") from e
+        raise KeylimeClaimsError("nonce is not valid base64 or base64url") from e
     if len(decoded) < _NONCE_MIN_BYTES or len(decoded) > _NONCE_MAX_BYTES:
         raise KeylimeClaimsError(
             f"nonce must decode to between {_NONCE_MIN_BYTES} and {_NONCE_MAX_BYTES} bytes, got {len(decoded)}"
         )
+    canonical = base64.urlsafe_b64encode(decoded).rstrip(b"=").decode("ascii")
+    stripped = nonce.rstrip("=")
+    if stripped != canonical and stripped != base64.b64encode(decoded).rstrip(b"=").decode("ascii"):
+        # Decodes fine but re-encodes differently: non-canonical
+        # trailing bits (RFC 4648 section 3.5), which consumers like
+        # ear 0.6.0 reject on re-encode.
+        raise KeylimeClaimsError("nonce is not canonically encoded; re-encode it canonically (base64url, unpadded)")
+    return canonical
 
 
 def _entry_to_dict(entry: Any) -> Dict[str, Any]:

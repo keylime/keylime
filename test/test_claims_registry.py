@@ -1,9 +1,16 @@
 """Unit tests for the claims pipeline registries (translator + renderer)."""
 
-from typing import Any, Dict
 import unittest
+from typing import Any, Dict, cast
 
-from keylime.claims.base import ClaimsTranslator, EvaluatedEvidence, KeylimeClaimsError, OutputFormat, Renderer, VerificationOutput
+from keylime.claims.base import (
+    ClaimsTranslator,
+    EvaluatedEvidence,
+    KeylimeClaimsError,
+    OutputFormat,
+    Renderer,
+    VerificationOutput,
+)
 from keylime.claims.registry import (
     register_evidence_type,
     register_output_format,
@@ -81,7 +88,6 @@ class TranslatorRegistryTest(_RegistryTestBase):
 
 
 class RendererRegistryTest(_RegistryTestBase):
-
     def test_register_and_get_round_trip(self) -> None:
         register_output_format(_DummyRenderer)
         self.assertIs(renderer_registry.get(OutputFormat.JSONAPI), _DummyRenderer)
@@ -93,12 +99,12 @@ class RendererRegistryTest(_RegistryTestBase):
 
     def test_unknown_key_raises(self) -> None:
         with self.assertRaises(KeylimeClaimsError):
-            renderer_registry.get("no-such-format")
+            renderer_registry.get(cast(OutputFormat, "no-such-format"))
 
     def test_unknown_key_error_names_the_axis_and_known_keys(self) -> None:
         register_output_format(_DummyRenderer)
         with self.assertRaises(KeylimeClaimsError) as ctx:
-            renderer_registry.get("no-such-format")
+            renderer_registry.get(cast(OutputFormat, "no-such-format"))
         message = str(ctx.exception)
         self.assertIn("renderer", message)
         self.assertIn(repr(OutputFormat.JSONAPI), message)

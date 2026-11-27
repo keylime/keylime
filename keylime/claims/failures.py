@@ -70,6 +70,15 @@ FAILURE_TYPE_MAP: Dict[Tuple[str, str], str] = {
     ("pcr_validation", "invalid_pcr_*"): "tpm.pcr_mismatch",
     ("pcr_validation", "unused_pcr_*"): "tpm.pcr_mismatch",
     ("pcr_validation", "missing_pcrs"): "tpm.pcr_mismatch",
+    # The data/binding PCR is required but absent from the quote
+    # (check_pcrs -> _check_data_pcr); the suffix is the configurable
+    # config.TPM_DATA_PCR, so a prefix row, same class as missing_pcrs.
+    ("pcr_validation", "missing_pcr_*"): "tpm.pcr_mismatch",
+    # Also raised inside check_pcrs, but neither is a PCR mismatch: the
+    # first is client-submitted policy garbage, the second a verifier
+    # misconfiguration. Spelled out to match the eval.* namespace style.
+    ("pcr_validation", "invalid_mb_policy"): "eval.invalid_measured_boot_policy",
+    ("pcr_validation", "invalid_measured_boot_evaluate"): "eval.invalid_measured_boot_evaluate",
     # measured boot
     ("measured_boot", "*"): "tpm.mb_mismatch",
     # IMA runtime-policy violations (incl. the dm.* table events)

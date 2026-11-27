@@ -148,7 +148,7 @@ class NormalizeFailureBasicTest(unittest.TestCase):
         for _ in range(5000):
             deep = {"n": deep}
         failure = _make_failure_event(Component.QUOTE_VALIDATION, "quote_validation", {"message": "m"})
-        failure.events[0].context = {"message": "signature mismatch", "detail": deep}
+        failure.events[0].context = json.dumps({"message": "signature mismatch", "detail": deep})
         with self.assertLogs("keylime.claims.failures", level="WARNING"):
             entries = normalize_failure(failure)
         self.assertEqual(entries[0].message, "signature mismatch")

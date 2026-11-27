@@ -5,7 +5,7 @@ import base64
 import json
 import os
 import unittest
-from typing import Any, Dict
+from typing import Any, Dict, cast
 from unittest import mock
 
 import keylime.cloud_verifier_common as cvc
@@ -13,6 +13,7 @@ from keylime.claims import (
     EvaluatedEvidence,
     KeylimeClaimsError,
     OutputFormat,
+    VerificationOutput,
     build_verification_output,
     render_response,
 )
@@ -23,6 +24,16 @@ from keylime.tpm.tpm_main import Tpm
 _QUOTE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "test-data", "files")
 
 _VALID_NONCE = base64.b64encode(b"n" * 32).decode()
+
+# The measurement-list parameters are Optional at runtime (absent when
+# the agent submitted no log) although the signature says str.
+_ABSENT_LIST = cast(str, None)
+
+
+def _ear_claims(output: VerificationOutput) -> Dict[str, Any]:
+    """Happy-path ear_claims — never None by construction."""
+    assert output.ear_claims is not None
+    return output.ear_claims
 
 
 def _b64file(name: str) -> str:
@@ -81,7 +92,7 @@ class PipelineShapeTest(unittest.TestCase):
         self.assertEqual(result.failures[0].type, "tpm.ima_violation")
         self.assertIsNotNone(output.ear_claims)
         self.assertIsNone(output.ear_token)
-        self.assertEqual(output.ear_claims["ear_status"], "contraindicated")
+        self.assertEqual(_ear_claims(output)["ear_status"], "contraindicated")
 
     def test_error_item_yields_no_ear_claims(self) -> None:
         item = _make_item(evidence={}, policies={}, failure=Failure(Component.DEFAULT), status="error")
@@ -163,7 +174,7 @@ class PipelineShapeTest(unittest.TestCase):
         output = build_verification_output([item], nonce=_VALID_NONCE, iss="https://v")
         self.assertIs(
             output.results[0].claims,
-            output.ear_claims["submods"]["default"]["ear_attester_claims"],
+            _ear_claims(output)["submods"]["default"]["ear_attester_claims"],
         )
 
 
@@ -186,7 +197,11 @@ class PipelineSmokeTest(unittest.TestCase):
 
     @staticmethod
     def _verify(ek: str, ak: str, quote: str, nonce: bytes, hash_alg: str, tpm_policy: str) -> Failure:
-        return cvc.process_verify_attestation(ek, ak, quote, nonce, hash_alg, tpm_policy, None, "", None, None)
+        # The runtime accepts a bytes nonce (the agent's raw challenge)
+        # even though the signature says str.
+        return cvc.process_verify_attestation(
+            ek, ak, quote, cast(str, nonce), hash_alg, tpm_policy, None, "", _ABSENT_LIST, _ABSENT_LIST
+        )
 
     @staticmethod
     def _ek() -> str:
@@ -217,14 +232,15 @@ class PipelineSmokeTest(unittest.TestCase):
         output = build_verification_output([item], nonce=_VALID_NONCE, iss="https://v")
 
         self.assertIsNotNone(output.ear_claims)
-        submod = output.ear_claims["submods"]["default"]
+        claims = _ear_claims(output)
+        submod = claims["submods"]["default"]
         self.assertEqual(submod["ear_status"], "affirming")
-        self.assertEqual(output.ear_claims["ear_status"], "affirming")
+        self.assertEqual(claims["ear_status"], "affirming")
         # Removed with D2: policy identity is carried by
         # ear_appraisal_policy_ids; the slot must be gone from the wire.
         self.assertNotIn("keylime_policy_fingerprint", submod)
-        # Deferred slots are present on the wire with null values.
-        self.assertIsNone(submod["ear_trustworthiness_vector"])
+        # Deferred slot: omitted (not null) until the computation lands.
+        self.assertNotIn("ear_trustworthiness_vector", submod)
         self.assertIsNone(submod["keylime_trust_anchor_fingerprints"])
         self.assertIsNone(submod["keylime_evidence_nonce"])
 
@@ -271,8 +287,9 @@ class PipelineSmokeTest(unittest.TestCase):
         output = build_verification_output([item], nonce=_VALID_NONCE, iss="https://v")
 
         self.assertIsNotNone(output.ear_claims)
-        self.assertEqual(output.ear_claims["ear_status"], "contraindicated")
-        submod = output.ear_claims["submods"]["default"]
+        claims = _ear_claims(output)
+        self.assertEqual(claims["ear_status"], "contraindicated")
+        submod = claims["submods"]["default"]
         self.assertEqual(submod["ear_status"], "contraindicated")
         failure_types = [f["type"] for f in submod["keylime_failures"]]
         self.assertIn("tpm.pcr_mismatch", failure_types)
@@ -304,7 +321,9 @@ class PipelineSmokeTest(unittest.TestCase):
             cvc, "process_verify_attestation", side_effect=OSError("verifier dependency unavailable")
         ):
             with self.assertRaises(OSError):
-                cvc.process_verify_attestation("ek", "ak", "q", b"n", "sha256", "{}", None, "", None, None)
+                cvc.process_verify_attestation(
+                    "ek", "ak", "q", cast(str, b"n"), "sha256", "{}", None, "", _ABSENT_LIST, _ABSENT_LIST
+                )
 
         item = _make_item(
             evidence={"quote": "q"},
@@ -332,8 +351,9 @@ class PipelineSmokeTest(unittest.TestCase):
             _make_item(ev, pol, Failure(Component.DEFAULT), "fail", evaluation_id="ev-2"),
         ]
         output = build_verification_output(items, nonce=_VALID_NONCE, iss="https://v")
-        self.assertEqual(sorted(output.ear_claims["submods"].keys()), ["ev-1", "ev-2"])
-        self.assertEqual(output.ear_claims["ear_status"], "contraindicated")
+        claims = _ear_claims(output)
+        self.assertEqual(sorted(claims["submods"].keys()), ["ev-1", "ev-2"])
+        self.assertEqual(claims["ear_status"], "contraindicated")
 
 
 if __name__ == "__main__":

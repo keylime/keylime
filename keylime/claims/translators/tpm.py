@@ -26,6 +26,54 @@ logger = keylime_logging.init_logging("claims.translators.tpm")
 _IMA_EVENT_PREFIX = "ima."
 
 
+def _ima_violations(failure: Any) -> List[Dict[str, Any]]:
+    """Failure events caused by the IMA check, as plain dicts.
+
+    Filtered by the INTERNAL event-id prefix "ima." — the real ids
+    are stable regardless of external naming decisions. The
+    matching events go through the same normalization (mapping +
+    bounds + entry cap) as the general failure list, then are
+    emitted as {type, message, context} — the same wire shape as
+    keylime_failures, and plain JSON-serializable types as the
+    translator contract requires (the claims go straight to the
+    signer's json.dumps).
+    """
+    events = [
+        event
+        for event in (getattr(failure, "events", None) or [])
+        if getattr(event, "event_id", "").startswith(_IMA_EVENT_PREFIX)
+    ]
+    return [
+        {"type": entry.type, "message": entry.message, "context": entry.context}
+        for entry in bounded_failure_entries(events)
+    ]
+
+
+def _boot_aggregate(first_line: Optional[str]) -> Optional[str]:
+    """Digest of the first (boot-aggregate) entry of the measurement list.
+
+    None when the list is absent or the first entry is unparsable or
+    is not a boot_aggregate entry.
+    """
+    if first_line is None:
+        return None
+    try:
+        # Lazy import: keeps this module importable without the IMA
+        # parser stack at package import time.
+        from keylime.ima import ast  # pylint: disable=import-outside-toplevel
+
+        entry = ast.Entry(first_line)
+        mode = entry.mode
+        if not isinstance(mode, (ast.Ima, ast.ImaNg, ast.ImaSig)):
+            return None
+        if mode.path.name != "boot_aggregate":
+            return None
+        return str(mode.digest.hash.hex())
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning("Could not parse the first IMA measurement list entry: %s", e)
+        return None
+
+
 @register_evidence_type
 class TpmClaimsTranslator(ClaimsTranslator):
     """Translates TPM verification facts into nested claims.
@@ -137,57 +185,9 @@ class TpmClaimsTranslator(ClaimsTranslator):
         return {
             "entries_count": entries_count,
             "evaluated": evaluated,
-            "violations": TpmClaimsTranslator._ima_violations(failure),
-            "boot_aggregate": TpmClaimsTranslator._boot_aggregate(first_line),
+            "violations": _ima_violations(failure),
+            "boot_aggregate": _boot_aggregate(first_line),
         }
-
-    @staticmethod
-    def _ima_violations(failure: Any) -> List[Dict[str, Any]]:
-        """Failure events caused by the IMA check, as plain dicts.
-
-        Filtered by the INTERNAL event-id prefix "ima." — the real ids
-        are stable regardless of external naming decisions. The
-        matching events go through the same normalization (mapping +
-        bounds + entry cap) as the general failure list, then are
-        emitted as {type, message, context} — the same wire shape as
-        keylime_failures, and plain JSON-serializable types as the
-        translator contract requires (the claims go straight to the
-        signer's json.dumps).
-        """
-        events = [
-            event
-            for event in (getattr(failure, "events", None) or [])
-            if getattr(event, "event_id", "").startswith(_IMA_EVENT_PREFIX)
-        ]
-        return [
-            {"type": entry.type, "message": entry.message, "context": entry.context}
-            for entry in bounded_failure_entries(events)
-        ]
-
-    @staticmethod
-    def _boot_aggregate(first_line: Optional[str]) -> Optional[str]:
-        """Digest of the first (boot-aggregate) entry of the measurement list.
-
-        None when the list is absent or the first entry is unparsable or
-        is not a boot_aggregate entry.
-        """
-        if first_line is None:
-            return None
-        try:
-            # Lazy import: keeps this module importable without the IMA
-            # parser stack at package import time.
-            from keylime.ima import ast  # pylint: disable=import-outside-toplevel
-
-            entry = ast.Entry(first_line)
-            mode = entry.mode
-            if not isinstance(mode, (ast.Ima, ast.ImaNg, ast.ImaSig)):
-                return None
-            if mode.path.name != "boot_aggregate":
-                return None
-            return str(mode.digest.hash.hex())
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning("Could not parse the first IMA measurement list entry: %s", e)
-            return None
 
     @staticmethod
     def _measured_boot(evidence: Mapping[str, Any]) -> Dict[str, Any]:
