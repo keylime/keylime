@@ -352,6 +352,7 @@ def process_get_status(agent: VerfierMain) -> Dict[str, Any]:
         "severity_level": agent.severity_level,
         "last_event_id": agent.last_event_id,
         "attestation_count": agent.attestation_count,
+        "total_attestation_failures": getattr(agent, "total_attestation_failures", None),
         "last_received_quote": agent.last_received_quote,
         "last_successful_attestation": agent.last_successful_attestation,
         "attestation_status": attestation_status,

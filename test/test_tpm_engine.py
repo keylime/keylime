@@ -34,6 +34,8 @@ class TestTPMEngineProcessResults(unittest.TestCase):
         self.mock_agent = MagicMock()
         self.mock_agent.agent_id = "test-agent-123"
         self.mock_agent.attestation_count = 0
+        self.mock_agent.consecutive_attestation_failures = 0
+        self.mock_agent.total_attestation_failures = 0
         self.mock_agent.accept_attestations = True
         self.mock_agent.ima_policy = None
         self.mock_agent.mb_policy = None
@@ -520,6 +522,49 @@ class TestTPMEngineFreshPolicy(unittest.TestCase):
         # Verify the fresh agent was returned
         self.assertEqual(agent.attestation_count, 5)
         self.assertIs(agent, fresh_agent)
+
+    @patch("keylime.verification.tpm_engine.config.get")
+    @patch("keylime.verification.tpm_engine.agent_util.is_push_mode_agent")
+    @patch("keylime.verification.tpm_engine.push_agent_monitor.schedule_agent_timeout")
+    @patch("keylime.verification.tpm_engine.config.getboolean")
+    def test_total_attestation_failures_increments_and_persists_across_recovery(
+        self, mock_getboolean, _mock_schedule_timeout, mock_is_push_mode, mock_config_get
+    ):
+        """total_attestation_failures increments on failure (including from None) and never resets."""
+        mock_config_get.return_value = "push"
+        mock_getboolean.return_value = True
+        mock_is_push_mode.return_value = True
+
+        self.mock_agent.accept_attestations = True
+        self.mock_agent.consecutive_attestation_failures = None
+        self.mock_agent.total_attestation_failures = None
+
+        failure = Failure(Component.QUOTE_VALIDATION)
+        failure.add_event("test_failure", "Test failure", True)
+
+        with patch.object(self.engine, "_select_ima_log_item", return_value=None):
+            with patch.object(self.engine, "_determine_failure_reason"):
+                with patch.object(type(self.engine), "attest_state", new_callable=PropertyMock, return_value=None):
+                    with patch.object(
+                        type(self.engine), "failure_reason", new_callable=PropertyMock, return_value=None
+                    ):
+                        self.engine._process_results(failure)
+                        self.engine._process_results(failure)
+
+        self.assertEqual(self.mock_agent.consecutive_attestation_failures, 2)
+        self.assertEqual(self.mock_agent.total_attestation_failures, 2)
+
+        with patch.object(self.engine, "_extend_auth_token"):
+            with patch.object(self.engine, "_select_ima_log_item", return_value=None):
+                with patch.object(self.engine, "_determine_failure_reason"):
+                    with patch.object(type(self.engine), "attest_state", new_callable=PropertyMock, return_value=None):
+                        with patch.object(
+                            type(self.engine), "failure_reason", new_callable=PropertyMock, return_value=None
+                        ):
+                            self.engine._process_results(None)
+
+        self.assertEqual(self.mock_agent.consecutive_attestation_failures, 0)
+        self.assertEqual(self.mock_agent.total_attestation_failures, 2)
 
 
 if __name__ == "__main__":

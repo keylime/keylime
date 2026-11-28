@@ -288,6 +288,7 @@ def _from_db_obj(agent_db_obj: VerfierMain) -> Dict[str, Any]:
         "mtls_cert",
         "ak_tpm",
         "attestation_count",
+        "total_attestation_failures",
         "last_received_quote",
         "last_successful_attestation",
         "tpm_clockinfo",
@@ -943,6 +944,7 @@ class AgentsHandler(BaseHandler):
                             "verifier", "uuid", fallback=cloud_verifier_common.DEFAULT_VERIFIER_ID
                         ),
                         "attestation_count": 0,
+                        "total_attestation_failures": 0,
                         "last_received_quote": 0,
                         "last_successful_attestation": 0,
                         "accept_attestations": True,

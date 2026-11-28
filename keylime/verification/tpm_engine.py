@@ -789,6 +789,11 @@ class TPMEngine(VerificationEngine):
             else:
                 self.attestation.agent.consecutive_attestation_failures += 1
 
+            if self.attestation.agent.total_attestation_failures is None:
+                self.attestation.agent.total_attestation_failures = 1
+            else:
+                self.attestation.agent.total_attestation_failures += 1
+
             # In pull mode, disable attestations immediately on failure (verifier controls attestation cadence)
             # In push mode, allow agent to retry with exponential backoff until token expires
             mode = config.get("verifier", "mode", fallback="pull")
