@@ -101,6 +101,7 @@ class TestFromDbObjFieldList(unittest.TestCase):
             "mtls_cert",
             "ak_tpm",
             "attestation_count",
+            "total_attestation_failures",
             "last_received_quote",
             "last_successful_attestation",
             "tpm_clockinfo",
@@ -799,6 +800,7 @@ class TestProcessGetStatus(unittest.TestCase):
         accept_attestations=True,
         attestation_count=0,
         consecutive_attestation_failures=None,
+        total_attestation_failures=0,
     ):
         """Helper to create a mock agent with specified attributes."""
         agent = MagicMock(spec=VerfierMain)
@@ -808,6 +810,7 @@ class TestProcessGetStatus(unittest.TestCase):
         agent.accept_attestations = accept_attestations
         agent.attestation_count = attestation_count
         agent.consecutive_attestation_failures = consecutive_attestation_failures
+        agent.total_attestation_failures = total_attestation_failures
         agent.last_received_quote = 0
         agent.last_successful_attestation = 0
         agent.v = None
@@ -1007,6 +1010,20 @@ class TestProcessGetStatus(unittest.TestCase):
         status = cloud_verifier_common.process_get_status(agent)
 
         self.assertEqual(status["attestation_status"], "PENDING")
+
+    def test_process_get_status_includes_total_attestation_failures(self):
+        """Test process_get_status exposes total_attestation_failures."""
+        agent = self._create_mock_agent(
+            operational_state=states.GET_QUOTE,
+            ip="127.0.0.1",
+            port=9002,
+            attestation_count=4,
+            total_attestation_failures=7,
+        )
+
+        status = cloud_verifier_common.process_get_status(agent)
+
+        self.assertEqual(status["total_attestation_failures"], 7)
 
 
 if __name__ == "__main__":

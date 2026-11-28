@@ -46,6 +46,7 @@ class VerifierAgent(PersistableModel):
 
         # Track consecutive attestation failures for exponential backoff (per enhancement #103)
         cls._field("consecutive_attestation_failures", Integer, nullable=True)
+        cls._field("total_attestation_failures", Integer, nullable=True)
 
         # ------------------------------------------------------------------ #
         # PULL-MODE ONLY FIELDS:
